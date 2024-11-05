@@ -83,7 +83,7 @@ int server_loop(int server_fd, const bool *done, message_event on_message)
                 return EXIT_FAILURE;
             }
 
-            LOG("New connection: socket fd %d\n", new_socket);
+            LOG("New connection: socket fd %s:%d\n", inet_ntoa(address.sin_addr), new_socket);
 
             // Add new socket to fds array
             fds[nfds].fd = new_socket;
