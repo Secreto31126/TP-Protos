@@ -3,9 +3,9 @@
 
 #ifdef DEVELOPMENT
 #include <stdio.h>
-#define LOG(fmt, ...) fprintf(stderr, fmt, __VA_ARGS__)
+#define LOG(...) fprintf(stderr, __VA_ARGS__)
 #else
-#define LOG(fmt, ...)
+#define LOG(...)
 #endif
 
 #endif
