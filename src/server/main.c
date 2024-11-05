@@ -33,7 +33,7 @@ int main()
     return server_loop(server_fd, &done, echo_back);
 }
 
-static int echo_back(const int client_fd, const char *body, size_t length)
+static ON_MESSAGE_RESULT echo_back(const int client_fd, const char *body, size_t length)
 {
     // Echo back
     if (send(client_fd, body, length, 0) < 0)
