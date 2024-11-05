@@ -12,7 +12,7 @@
  * @brief Configure the signal handlers and close the standard input.
  */
 static void setup();
-static int echo_back(const int client_fd, const char *body);
+static int echo_back(const int client_fd, const char *body, size_t length);
 
 static bool done = false;
 
@@ -33,10 +33,10 @@ int main()
     return server_loop(server_fd, &done, echo_back);
 }
 
-static int echo_back(const int client_fd, const char *body)
+static int echo_back(const int client_fd, const char *body, size_t length)
 {
     // Echo back
-    if (send(client_fd, body, strlen(body), 0) < 0)
+    if (send(client_fd, body, length, 0) < 0)
     {
         LOG("Failed to send message back to client\n");
         return CONNECTION_ERROR;

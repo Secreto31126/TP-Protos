@@ -101,10 +101,10 @@ int server_loop(int server_fd, const bool *done, message_event on_message)
             }
 
             char buffer[1024] = {0};
-            int valread = read(fds[i].fd, buffer, sizeof(buffer));
+            int len = read(fds[i].fd, buffer, sizeof(buffer));
 
             // Connection closed or error, remove from poll
-            if (valread <= 0)
+            if (len <= 0)
             {
                 LOG("Client disconnected: socket fd %d\n", fds[i].fd);
 
@@ -116,7 +116,7 @@ int server_loop(int server_fd, const bool *done, message_event on_message)
 
             LOG("Received from client %d: %s\n", fds[i].fd, buffer);
 
-            ON_MESSAGE_RESULT result = on_message(fds[i].fd, buffer);
+            ON_MESSAGE_RESULT result = on_message(fds[i].fd, buffer, len);
 
             if (result != KEEP_CONNECTION_OPEN)
             {

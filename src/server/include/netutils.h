@@ -20,11 +20,12 @@ typedef enum ON_MESSAGE_RESULT
  *
  * @param client_fd The client file descriptor.
  * @param body The message body.
+ * @param length The message length.
  * @return KEEP_CONNECTION_OPEN to keep the connection open.
  * @return CLOSE_CONNECTION to close.
  * @return CONNECTION_ERROR to save to stats and close.
  */
-typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body);
+typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body, size_t length);
 
 /**
  * @brief Initialize a TCP server in non-blocking mode.
