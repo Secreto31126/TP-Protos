@@ -7,7 +7,9 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 
-#define CLOSE_SOCKET(fds, nfds, i) close(fds[i].fd); fds[i--] = fds[--nfds];
+#define CLOSE_SOCKET(fds, nfds, i) \
+    close(fds[i].fd);              \
+    fds[i--] = fds[--nfds];
 
 int start_server(struct sockaddr_in *address, int port)
 {
@@ -56,10 +58,17 @@ int start_server(struct sockaddr_in *address, int port)
     return server_fd;
 }
 
-int server_loop(int server_fd, const bool *done, message_event on_message)
+static void noop()
+{
+}
+
+int server_loop(int server_fd, const bool *done, connection_event on_connection, message_event on_message, close_event on_close)
 {
     struct sockaddr_in address;
     int new_socket, addrlen = sizeof(address);
+
+    on_connection = on_connection ? on_connection : noop;
+    on_close = on_close ? on_close : noop;
 
     // Array to hold client sockets and poll event types
     struct pollfd fds[MAX_CLIENTS + 1];
@@ -91,6 +100,8 @@ int server_loop(int server_fd, const bool *done, message_event on_message)
             fds[nfds].fd = new_socket;
             fds[nfds].events = POLLIN;
             nfds++;
+
+            on_connection(new_socket, address);
         }
 
         // Check each client socket for activity
@@ -109,6 +120,8 @@ int server_loop(int server_fd, const bool *done, message_event on_message)
             if (len <= 0)
             {
                 LOG("Client disconnected: socket fd %d\n", fds[i].fd);
+
+                on_close(fds[i].fd);
                 CLOSE_SOCKET(fds, nfds, i);
                 continue;
             }
@@ -127,6 +140,7 @@ int server_loop(int server_fd, const bool *done, message_event on_message)
 
                 LOG("Closing connection: socket fd %d\n", fds[i].fd);
 
+                on_close(fds[i].fd);
                 CLOSE_SOCKET(fds, nfds, i);
             }
         }

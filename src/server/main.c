@@ -30,7 +30,7 @@ int main()
 
     LOG("Server listening on %s:%d...\n", inet_ntoa(address.sin_addr), PORT);
 
-    return server_loop(server_fd, &done, echo_back);
+    return server_loop(server_fd, &done, NULL, echo_back, NULL);
 }
 
 static ON_MESSAGE_RESULT echo_back(const int client_fd, const char *body, size_t length)

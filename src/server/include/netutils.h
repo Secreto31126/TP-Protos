@@ -16,6 +16,14 @@ typedef enum ON_MESSAGE_RESULT
 } ON_MESSAGE_RESULT;
 
 /**
+ * @brief Handle a connection event
+ *
+ * @param client_fd The client file descriptor.
+ * @param address The client address information.
+ */
+typedef void (*connection_event)(const int client_fd, struct sockaddr_in address);
+
+/**
  * @brief Handle a message event
  *
  * @param client_fd The client file descriptor.
@@ -26,6 +34,14 @@ typedef enum ON_MESSAGE_RESULT
  * @return CONNECTION_ERROR to save to stats and close.
  */
 typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body, size_t length);
+
+/**
+ * @brief Handle a close event
+ * @note The fd is still open to prevent race conditions, but should not be used to read or write.
+ *
+ * @param client_fd The client file descriptor.
+ */
+typedef void (*close_event)(const int client_fd);
 
 /**
  * @brief Initialize a TCP server in non-blocking mode.
@@ -41,9 +57,11 @@ int start_server(struct sockaddr_in *address, int port);
  * @note The server will run until a SIGINT or SIGTERM signal is received, which will set the done flag to true.
  * @param server_fd The server file descriptor.
  * @param done The flag to indicate when the server should gracefully stop.
+ * @param on_connection The callback function to handle incoming connections, it may be NULL.
  * @param on_message The callback function to handle incoming messages.
+ * @param on_close The callback function to handle closed connections, it may be NULL.
  * @return int The exit status.
  */
-int server_loop(int server_fd, const bool *done, message_event on_message);
+int server_loop(int server_fd, const bool *done, connection_event on_connection, message_event on_message, close_event on_close);
 
 #endif
