@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <logger.h>
 #include <netutils.h>
+#include <pop.h>
 
 #define PORT 8080
 
@@ -12,7 +13,6 @@
  * @brief Configure the signal handlers and close the standard input.
  */
 static void setup();
-static int echo_back(const int client_fd, const char *body, size_t length);
 
 static bool done = false;
 
@@ -30,19 +30,8 @@ int main()
 
     LOG("Server listening on %s:%d...\n", inet_ntoa(address.sin_addr), PORT);
 
-    return server_loop(server_fd, &done, NULL, echo_back, NULL);
-}
-
-static ON_MESSAGE_RESULT echo_back(const int client_fd, const char *body, size_t length)
-{
-    // Echo back
-    if (send(client_fd, body, length, 0) < 0)
-    {
-        LOG("Failed to send message back to client\n");
-        return CONNECTION_ERROR;
-    }
-
-    return KEEP_CONNECTION_OPEN;
+    pop_init(NULL);
+    return server_loop(server_fd, &done, handle_pop_connect, handle_pop_message, NULL);
 }
 
 static void sigterm_handler(const int signal)
