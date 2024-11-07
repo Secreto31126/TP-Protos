@@ -20,8 +20,11 @@ typedef enum ON_MESSAGE_RESULT
  *
  * @param client_fd The client file descriptor.
  * @param address The client address information.
+ * @return KEEP_CONNECTION_OPEN to keep the connection open.
+ * @return CLOSE_CONNECTION to close.
+ * @return CONNECTION_ERROR to save to stats and close.
  */
-typedef void (*connection_event)(const int client_fd, struct sockaddr_in address);
+typedef ON_MESSAGE_RESULT (*connection_event)(const int client_fd, struct sockaddr_in address);
 
 /**
  * @brief Handle a message event
@@ -53,6 +56,9 @@ typedef void (*close_event)(const int client_fd);
 int start_server(struct sockaddr_in *address, int port);
 /**
  * @brief The main server loop to handle incoming connections and messages.
+ *
+ * @note If on_connection rejects the connection, on_close will NOT be triggered.
+ * It's expected that on_connection will not allocate resources if it will not connect.
  *
  * @note The server will run until a SIGINT or SIGTERM signal is received, which will set the done flag to true.
  * @param server_fd The server file descriptor.

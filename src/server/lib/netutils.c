@@ -58,8 +58,9 @@ int start_server(struct sockaddr_in *address, int port)
     return server_fd;
 }
 
-static void noop()
+static ON_MESSAGE_RESULT noop()
 {
+    return KEEP_CONNECTION_OPEN;
 }
 
 int server_loop(int server_fd, const bool *done, connection_event on_connection, message_event on_message, close_event on_close)
@@ -96,12 +97,24 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
             LOG("New connection: socket fd %s:%d\n", inet_ntoa(address.sin_addr), new_socket);
 
-            // Add new socket to fds array
-            fds[nfds].fd = new_socket;
-            fds[nfds].events = POLLIN;
-            nfds++;
+            ON_MESSAGE_RESULT result = on_connection(new_socket, address);
 
-            on_connection(new_socket, address);
+            if (result != KEEP_CONNECTION_OPEN)
+            {
+                if (result == CONNECTION_ERROR)
+                {
+                    // TODO: Real stats
+                    LOG("Error handling message\n");
+                }
+
+                LOG("Closing connection: socket fd %d\n", new_socket);
+                close(new_socket);
+            } else {
+                // Add new socket to fds array
+                fds[nfds].fd = new_socket;
+                fds[nfds].events = POLLIN;
+                nfds++;
+            }
         }
 
         // Check each client socket for activity
