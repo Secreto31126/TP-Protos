@@ -1,8 +1,10 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -fdiagnostics-color=always
+CFLAGS = -Wall -fdiagnostics-color=always
 
 ifneq ($(DEBUG), 0)
 CFLAGS += -g -DDEVELOPMENT
+else
+CFLAGS += -O2
 endif
 
 SRC = $(wildcard lib/*.c) main.c
