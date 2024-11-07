@@ -76,7 +76,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
     on_close = on_close ? on_close : noop;
 
     // Array to hold client sockets and poll event types
-    struct pollfd fds[MAX_CLIENTS + 1];
+    struct pollfd fds[MAX_CLIENTS + 1] = {0};
     fds[0].fd = server_fd;
     fds[0].events = POLLIN;
     int nfds = 1;
