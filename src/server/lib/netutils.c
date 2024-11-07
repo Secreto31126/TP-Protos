@@ -143,7 +143,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                 continue;
             }
 
-            LOG("Received from client %d: %s\n", fds[i].fd, buffer);
+            LOG("Received from client %d (%d bytes): %s\n", fds[i].fd, len, buffer);
 
             ON_MESSAGE_RESULT result = on_message(fds[i].fd, buffer, len);
 
