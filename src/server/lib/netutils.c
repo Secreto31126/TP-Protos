@@ -58,9 +58,13 @@ int start_server(struct sockaddr_in *address, int port)
     return server_fd;
 }
 
-static ON_MESSAGE_RESULT noop()
+static ON_MESSAGE_RESULT keep_alive_noop()
 {
     return KEEP_CONNECTION_OPEN;
+}
+
+static void noop()
+{
 }
 
 int server_loop(int server_fd, const bool *done, connection_event on_connection, message_event on_message, close_event on_close)
@@ -68,7 +72,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
     struct sockaddr_in address;
     int new_socket, addrlen = sizeof(address);
 
-    on_connection = on_connection ? on_connection : noop;
+    on_connection = on_connection ? on_connection : keep_alive_noop;
     on_close = on_close ? on_close : noop;
 
     // Array to hold client sockets and poll event types
