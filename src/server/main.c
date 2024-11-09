@@ -31,7 +31,7 @@ int main()
     LOG("Server listening on %s:%d...\n", inet_ntoa(address.sin_addr), PORT);
 
     pop_init(NULL);
-    return server_loop(server_fd, &done, handle_pop_connect, handle_pop_message, NULL);
+    return server_loop(server_fd, &done, handle_pop_connect, handle_pop_message, handle_pop_close);
 }
 
 static void sigterm_handler(const int signal)

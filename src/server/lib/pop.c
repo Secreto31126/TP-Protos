@@ -27,23 +27,56 @@
 
 #define MAX_CLIENT_MAILS 0x1000
 
+/**
+ * @brief The mail information for a client connection.
+ */
 typedef struct Mailfile
 {
+    /**
+     * @brief The mail unique ID and filename
+     */
     char uid[71];
+    /**
+     * @brief If the mail is marked for deletion by the client
+     * @note The mails are not deleted until the client enters the UPDATE state
+     */
     bool deleted;
+    /**
+     * @brief The mail size in bytes
+     */
     size_t size;
 } Mailfile;
 
+/**
+ * @brief The client connection information.
+ */
 typedef struct Connection
 {
+    /**
+     * @brief The client buffer for incomplete commands
+     */
     char buffer[CONNECTION_BUFFER_SIZE];
+    /**
+     * @brief The client username
+     * @note This fields MUST ALWAYS contain safe usernames (see safe_username())
+     * @note If empty, the client should send the USER command
+     */
     char username[MAX_USERNAME_LENGTH + 1];
+    /**
+     * @brief If the client is authenticated (TRANSACTION state)
+     */
     bool authenticated;
+    /**
+     * @brief The client mails (loaded after the AUTHORIZATION state)
+     */
     Mailfile mails[MAX_CLIENT_MAILS];
 } Connection;
 
 static Connection connections[MAX_CLIENTS] = {0};
 
+/**
+ * @brief The directory where the user mailboxes are stored.
+ */
 static const char *maildir;
 
 void pop_init(const char *dir)
@@ -215,6 +248,14 @@ static bool pass_valid(const char *username, const char *pass)
     return !strcmp(buffer, pass);
 }
 
+/**
+ * @brief Set the user emails in the client connection.
+ * 
+ * @param username The username (NULL terminated).
+ * @param mails The client mails array.
+ * @return true The mails were successfully loaded.
+ * @return false The mails could not be loaded.
+ */
 static bool set_user_mails(const char *username, Mailfile mails[MAX_CLIENT_MAILS])
 {
     char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail")];
@@ -292,8 +333,9 @@ static size_t handle_user(Connection *client, const char *username, char **respo
 }
 
 /**
- * @brief Handles a PASS command. If the password is correct, the client is authenticated.
- * If not, the username is cleared and the client is not authenticated.
+ * @brief Handles a PASS command. If the password is correct and the lock isn't active,
+ * the client is authenticated, the lock is raised and the user mails are loaded.
+ * If not, the username is cleared, the client is not authenticated, and the lock is not raised.
  *
  * @param client The client connection.
  * @param pass The input password (NULL terminated).
@@ -328,6 +370,7 @@ static size_t handle_pass(Connection *client, const char *pass, char **response)
 
     if (!set_user_mails(client->username, client->mails))
     {
+        remove_lock(client->username);
         client->username[0] = 0;
 
         *response = ERR_RESPONSE(" Failed to load user mails");
@@ -336,16 +379,64 @@ static size_t handle_pass(Connection *client, const char *pass, char **response)
 
     client->authenticated = true;
 
-    *response = OK_RESPONSE();
-    return sizeof(OK_RESPONSE()) - 1;
+    *response = OK_RESPONSE(" Something about the weight of the emails here");
+    return sizeof(OK_RESPONSE(" Something about the weight of the emails here")) - 1;
 }
 
+/**
+ * @brief Handles a NOOP command.
+ *
+ * @param response The response to send back to the client.
+ * @return size_t The length of the response.
+ */
 static size_t handle_noop(char **response)
 {
     *response = OK_RESPONSE(" Waiting for something to happen...");
     return sizeof(OK_RESPONSE(" Waiting for something to happen...")) - 1;
 }
 
+/**
+ * @brief Handles a QUIT command in the transaction state.
+ * Executes the UPDATE state logic.
+ *
+ * @param client The client connection.
+ * @return true if the UPDATE was successful.
+ * @return false if the UPDATE failed.
+ */
+static bool handle_transaction_quit(Connection *client)
+{
+    Mailfile *mails = client->mails;
+    while (mails->uid[0])
+    {
+        if (!mails->deleted)
+        {
+            continue;
+        }
+
+        char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mails->uid)];
+        snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, client->username, mails->uid);
+
+        if (remove(path) < 0)
+        {
+            LOG("Failed to remove mail %s\n", mails->uid);
+            return false;
+        }
+
+        mails++;
+    }
+
+    return true;
+}
+
+/**
+ * @brief Handles a message in the authorization state of a POP3 connection.
+ * 
+ * @param client The client connection.
+ * @param client_fd The client file descriptor.
+ * @param body The message body.
+ * @param length The message length.
+ * @return ON_MESSAGE_RESULT The result of the message handling.
+ */
 static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int client_fd, char *body, size_t length)
 {
     char cmds[length + 1];
@@ -360,12 +451,7 @@ static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int 
 
     if (!strcmp(cmds, "QUIT"))
     {
-        if (send(client_fd, OK_RESPONSE(" Bye!"), sizeof(OK_RESPONSE(" Bye!")), 0) < 0)
-        {
-            LOG("Failed to send message back to client\n");
-            return CONNECTION_ERROR;
-        }
-
+        // The "bye" message will be sent by the on_close event
         return CLOSE_CONNECTION;
     }
 
@@ -441,6 +527,69 @@ static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int 
 }
 
 /**
+ * @brief Handles a message in the transaction state of a POP3 connection.
+ *
+ * @param client The client connection.
+ * @param client_fd The client file descriptor.
+ * @param body The message body.
+ * @param length The message length.
+ * @return ON_MESSAGE_RESULT The result of the message handling.
+ */
+static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int client_fd, char *body, size_t length)
+{
+    char cmds[length + 1];
+    strncpy(cmds, body, length);
+    cmds[length] = 0;
+
+    int argc = parse_pop_cmd(cmds);
+
+    LOG("%s\n", cmds);
+
+    char *buffer;
+
+    if (!strcmp(cmds, "QUIT"))
+    {
+        bool success = handle_transaction_quit(client);
+
+        // Not sure if this block of code is RFC compliant
+        if (!success)
+        {
+            char response[] = ERR_RESPONSE(" Failed to update mailbox");
+            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
+            {
+                LOG("Failed to send message back to client\n");
+                return CONNECTION_ERROR;
+            }
+
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        return CLOSE_CONNECTION;
+    }
+
+    if (!strcmp(cmds, "NOOP"))
+    {
+        size_t len = handle_noop(&buffer);
+        if (send(client_fd, buffer, len, 0) < 0)
+        {
+            LOG("Failed to send message back to client\n");
+            return CONNECTION_ERROR;
+        }
+
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    char response[] = ERR_RESPONSE(" Invalid command");
+    if (send(client_fd, response, sizeof(response), 0) < 0)
+    {
+        LOG("Failed to send message back to client\n");
+        return CONNECTION_ERROR;
+    }
+
+    return KEEP_CONNECTION_OPEN;
+}
+
+/**
  * @brief Handles a single POP3 command.
  *
  * @param client The client connection.
@@ -457,7 +606,10 @@ static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd
         return handle_pop_authorization_state(client, client_fd, cmd, length);
     }
 
-    return KEEP_CONNECTION_OPEN;
+    // Consider adding an UPDATE flag on the client connection to prevent
+    // weird edge case scenarios where a user sends a command after a QUIT
+    // command and somehow it triggers an impossible race condition
+    return handle_pop_transaction_state(client, client_fd, cmd, length);
 }
 
 ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address)
@@ -522,4 +674,25 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
     }
 
     return KEEP_CONNECTION_OPEN;
+}
+
+void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
+{
+    Connection *client = connections + client_fd;
+
+    remove_lock(client->username);
+
+    // Privacy friendly
+    memset(client->username, 0, sizeof(client->username));
+    client->authenticated = false;
+
+    if (result == CONNECTION_ERROR)
+    {
+        return;
+    }
+
+    if (send(client_fd, OK_RESPONSE(" Bye!"), sizeof(OK_RESPONSE(" Bye!")) - 1, 0) < 0)
+    {
+        LOG("Failed to send last message back to client\n");
+    }
 }
