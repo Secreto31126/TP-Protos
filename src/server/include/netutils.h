@@ -43,8 +43,9 @@ typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body
  * @note The fd is still open to prevent race conditions, but should not be used to read or write.
  *
  * @param client_fd The client file descriptor.
+ * @param result The result of the last message handled.
  */
-typedef void (*close_event)(const int client_fd);
+typedef void (*close_event)(const int client_fd, ON_MESSAGE_RESULT result);
 
 /**
  * @brief Initialize a TCP server in non-blocking mode.

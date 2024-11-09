@@ -138,7 +138,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
             {
                 LOG("Client disconnected: socket fd %d\n", fds[i].fd);
 
-                on_close(fds[i].fd);
+                on_close(fds[i].fd, CONNECTION_ERROR);
                 CLOSE_SOCKET(fds, nfds, i);
                 continue;
             }
@@ -157,7 +157,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
                 LOG("Closing connection: socket fd %d\n", fds[i].fd);
 
-                on_close(fds[i].fd);
+                on_close(fds[i].fd, result);
                 CLOSE_SOCKET(fds, nfds, i);
             }
         }
