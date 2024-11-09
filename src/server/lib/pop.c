@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define CONNECTION_BUFFER_SIZE 1024
+
 #define MAX_POP3_ARG_LENGTH 40
 #define MAX_USERNAME_LENGTH MAX_POP3_ARG_LENGTH
 #define MAX_PASSWORD_LENGTH MAX_POP3_ARG_LENGTH
@@ -34,6 +36,7 @@ typedef struct Mailfile
 
 typedef struct Connection
 {
+    char buffer[CONNECTION_BUFFER_SIZE];
     char username[MAX_USERNAME_LENGTH + 1];
     bool authenticated;
     Mailfile mails[MAX_CLIENT_MAILS];
@@ -459,6 +462,7 @@ static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd
 
 ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address)
 {
+    connections[client_fd].buffer[0] = 0;
     connections[client_fd].username[0] = 0;
     connections[client_fd].authenticated = false;
 
@@ -485,7 +489,17 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
         if (buffer + i != start_cmd && buffer[i - 1] == '\r' && buffer[i] == '\n')
         {
             buffer[i - 1] = 0;
-            ON_MESSAGE_RESULT result = handle_pop_single_cmd(client, client_fd, start_cmd, buffer + i - start_cmd - 1);
+
+            char *data = start_cmd;
+            if (client->buffer[0])
+            {
+                data = client->buffer;
+                strncat(data, start_cmd, sizeof(client->buffer) - strlen(client->buffer) - 1);
+            }
+
+            ON_MESSAGE_RESULT result = handle_pop_single_cmd(client, client_fd, data, strlen(data));
+
+            client->buffer[0] = 0;
 
             if (result != KEEP_CONNECTION_OPEN)
             {
@@ -494,7 +508,18 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
 
             start_cmd = buffer + i + 1;
         }
-    } // If no ending \r\n is found, the message is dropped and ignored
+    }
+
+    // If there is a command left in the body, store it for the next message
+    if (start_cmd != buffer + length)
+    {
+        strncpy(client->buffer, start_cmd, length - (start_cmd - buffer));
+        client->buffer[length - (start_cmd - buffer)] = 0;
+    }
+    else
+    {
+        client->buffer[0] = 0;
+    }
 
     return KEEP_CONNECTION_OPEN;
 }
