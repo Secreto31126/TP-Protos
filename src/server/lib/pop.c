@@ -1,5 +1,6 @@
 #include <pop.h>
 
+#include <ctype.h>
 #include <dirent.h>
 #include <logger.h>
 #include <stdlib.h>
@@ -461,6 +462,36 @@ static size_t handle_stat(Connection *client, char **response)
 }
 
 /**
+ * @brief Handles a DELE command.
+ * 
+ * @param client The client connection.
+ * @param msg The message number to delete.
+ * @param response The response to send back to the client.
+ * @return size_t The length of the response.
+ */
+static size_t handle_dele(Connection *client, size_t msg, char **response)
+{
+    Mailfile *mail = client->mails + (msg - 1);
+
+    if (!mail->uid[0])
+    {
+        *response = ERR_RESPONSE(" No such message");
+        return sizeof(ERR_RESPONSE(" No such message")) - 1;
+    }
+
+    if (mail->deleted)
+    {
+        *response = ERR_RESPONSE(" Message already deleted");
+        return sizeof(ERR_RESPONSE(" Message already deleted")) - 1;
+    }
+
+    mail->deleted = true;
+
+    *response = OK_RESPONSE(" Message deleted");
+    return sizeof(OK_RESPONSE(" Message deleted")) - 1;
+}
+
+/**
  * @brief Handles a message in the authorization state of a POP3 connection.
  * 
  * @param client The client connection.
@@ -614,6 +645,47 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
     if (!strcmp(cmds, "STAT"))
     {
         size_t len = handle_stat(client, &buffer);
+        if (send(client_fd, buffer, len, 0) < 0)
+        {
+            LOG("Failed to send message back to client\n");
+            return CONNECTION_ERROR;
+        }
+
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    if (!strcmp(cmds, "DELE"))
+    {
+        if (argc != 1)
+        {
+            char response[] = ERR_RESPONSE(" Invalid number of arguments");
+            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
+            {
+                LOG("Failed to send message back to client\n");
+                return CONNECTION_ERROR;
+            }
+
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        char *num = cmds + sizeof("DELE");
+
+        char *err;
+        size_t msg = strtoull(num, &err, 10);
+
+        if (*err || !(0 < msg && msg < MAX_CLIENT_MAILS) || !isdigit(*num))
+        {
+            char response[] = ERR_RESPONSE(" Invalid message number");
+            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
+            {
+                LOG("Failed to send message back to client\n");
+                return CONNECTION_ERROR;
+            }
+
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        size_t len = handle_dele(client, msg, &buffer);
         if (send(client_fd, buffer, len, 0) < 0)
         {
             LOG("Failed to send message back to client\n");
