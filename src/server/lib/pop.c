@@ -261,7 +261,7 @@ static bool set_user_mails(const char *username, Mailfile mails[MAX_CLIENT_MAILS
     char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail")];
     snprintf(path, sizeof(path), "%s/%s/mail", maildir, username);
 
-    DIR *dir = opendir(maildir);
+    DIR *dir = opendir(path);
     if (!dir)
     {
         return false;
@@ -271,7 +271,7 @@ static bool set_user_mails(const char *username, Mailfile mails[MAX_CLIENT_MAILS
     struct dirent *entry;
     while ((entry = readdir(dir)))
     {
-        if (strcmp(entry->d_name, ".") || strcmp(entry->d_name, ".."))
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
         {
             continue;
         }
@@ -284,11 +284,11 @@ static bool set_user_mails(const char *username, Mailfile mails[MAX_CLIENT_MAILS
 
         mails[i].deleted = false;
 
-        char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mails[i].uid)];
-        snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, username, mails[i].uid);
+        char filepath[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mails[i].uid)];
+        snprintf(filepath, sizeof(filepath), "%s/%s/mail/%s", maildir, username, mails[i].uid);
 
         struct stat buf;
-        if (stat(path, &buf) < 0)
+        if (stat(filepath, &buf) < 0)
         {
             closedir(dir);
             return false;
@@ -410,6 +410,7 @@ static bool handle_transaction_quit(Connection *client)
     {
         if (!mails->deleted)
         {
+            mails++;
             continue;
         }
 
