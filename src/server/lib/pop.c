@@ -430,6 +430,37 @@ static bool handle_transaction_quit(Connection *client)
 }
 
 /**
+ * @brief Handles a STAT command.
+ * 
+ * @param client The client connection.
+ * @param response The response to send back to the client.
+ * @return size_t The length of the response.
+ */
+static size_t handle_stat(Connection *client, char **response)
+{
+    size_t size = 0;
+    size_t count = 0;
+
+    Mailfile *mails = client->mails;
+    while (mails->uid[0])
+    {
+        if (!mails->deleted)
+        {
+            size += mails->size;
+            count++;
+        }
+
+        mails++;
+    }
+
+    char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
+    snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu %zu"), count, size);
+
+    *response = buffer;
+    return strlen(buffer);
+}
+
+/**
  * @brief Handles a message in the authorization state of a POP3 connection.
  * 
  * @param client The client connection.
@@ -571,6 +602,18 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
     if (!strcmp(cmds, "NOOP"))
     {
         size_t len = handle_noop(&buffer);
+        if (send(client_fd, buffer, len, 0) < 0)
+        {
+            LOG("Failed to send message back to client\n");
+            return CONNECTION_ERROR;
+        }
+
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    if (!strcmp(cmds, "STAT"))
+    {
+        size_t len = handle_stat(client, &buffer);
         if (send(client_fd, buffer, len, 0) < 0)
         {
             LOG("Failed to send message back to client\n");
