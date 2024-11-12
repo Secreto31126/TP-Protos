@@ -97,8 +97,10 @@ void pop_init(const char *dir)
 }
 
 /**
- * @brief Parses a POP3 command, replacing spaces with null terminators.
- * Stops at a null terminator.
+ * @brief Parses a POP3 input, replacing spaces with null terminators.
+ * Changes the POP3 command to UPPER CASE. Stops at a null terminator.
+ *
+ * @note The input command is modified in place.
  *
  * @param cmd The input command.
  * @return int The number of arguments in the input (excluding the POP3 command).
@@ -112,6 +114,10 @@ static int parse_pop_cmd(char *cmd)
         {
             argc++;
             *cmd = 0;
+        }
+
+        if (!argc) {
+            *cmd = toupper(*cmd);
         }
 
         cmd++;
