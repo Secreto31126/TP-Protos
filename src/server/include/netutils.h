@@ -71,4 +71,13 @@ int start_server(struct sockaddr_in *address, int port);
  */
 int server_loop(int server_fd, const bool *done, connection_event on_connection, message_event on_message, close_event on_close);
 
+/**
+ * @brief Asynchronously send a package to a client.
+ *
+ * @param client_fd The client file descriptor.
+ * @param message The message to send.
+ * @param length The message length.
+ */
+void asend(int client_fd, const char *message, size_t length);
+
 #endif

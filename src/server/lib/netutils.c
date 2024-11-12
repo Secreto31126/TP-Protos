@@ -5,11 +5,17 @@
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 
 #define CLOSE_SOCKET(fds, nfds, i) \
     close(fds[i].fd);              \
     fds[i--] = fds[--nfds];
+
+// Array to hold client sockets and poll event types
+static struct pollfd fds[MAX_CLIENTS + 1];
+
+static ON_MESSAGE_RESULT time_to_async_send(int client_fd);
 
 int start_server(struct sockaddr_in *address, int port)
 {
@@ -75,8 +81,6 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
     on_connection = on_connection ? on_connection : keep_alive_noop;
     on_close = on_close ? on_close : noop;
 
-    // Array to hold client sockets and poll event types
-    struct pollfd fds[MAX_CLIENTS + 1];
     fds[0].fd = server_fd;
     fds[0].events = POLLIN;
     int nfds = 1;
@@ -113,7 +117,9 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
                 LOG("Closing connection: socket fd %d\n", new_socket);
                 close(new_socket);
-            } else {
+            }
+            else
+            {
                 // Add new socket to fds array
                 fds[nfds].fd = new_socket;
                 fds[nfds].events = POLLIN;
@@ -125,43 +131,175 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
         for (int i = 1; i < nfds; i++)
         {
             // Skip sockets without updates
-            if (!(fds[i].revents & POLLIN))
+            if (fds[i].revents & POLLIN)
             {
-                continue;
-            }
+                char buffer[1024] = {0};
+                int len = recv(fds[i].fd, buffer, sizeof(buffer), 0);
 
-            char buffer[1024] = {0};
-            int len = recv(fds[i].fd, buffer, sizeof(buffer), 0);
-
-            // Connection closed or error, remove from poll
-            if (len <= 0)
-            {
-                LOG("Client disconnected: socket fd %d\n", fds[i].fd);
-
-                on_close(fds[i].fd, CONNECTION_ERROR);
-                CLOSE_SOCKET(fds, nfds, i);
-                continue;
-            }
-
-            LOG("Received from client %d (%d bytes): %s\n", fds[i].fd, len, buffer);
-
-            ON_MESSAGE_RESULT result = on_message(fds[i].fd, buffer, len);
-
-            if (result != KEEP_CONNECTION_OPEN)
-            {
-                if (result == CONNECTION_ERROR)
+                // Connection closed or error, remove from poll
+                if (len <= 0)
                 {
-                    // TODO: Real stats
-                    LOG("Error handling message\n");
+                    LOG("Client disconnected: socket fd %d\n", fds[i].fd);
+
+                    on_close(fds[i].fd, CONNECTION_ERROR);
+                    CLOSE_SOCKET(fds, nfds, i);
+                    continue;
                 }
 
-                LOG("Closing connection: socket fd %d\n", fds[i].fd);
+                LOG("Received from client %d (%d bytes): %s\n", fds[i].fd, len, buffer);
 
-                on_close(fds[i].fd, result);
-                CLOSE_SOCKET(fds, nfds, i);
+                ON_MESSAGE_RESULT result = on_message(fds[i].fd, buffer, len);
+
+                if (result != KEEP_CONNECTION_OPEN)
+                {
+                    if (result == CONNECTION_ERROR)
+                    {
+                        // TODO: Real stats
+                        LOG("Error handling message\n");
+                    }
+
+                    LOG("Closing connection: socket fd %d\n", fds[i].fd);
+
+                    on_close(fds[i].fd, result);
+                    CLOSE_SOCKET(fds, nfds, i);
+                }
+            }
+
+            if (fds[i].revents & POLLOUT)
+            {
+                ON_MESSAGE_RESULT result = time_to_asend(fds[i].fd);
+
+                if (result != KEEP_CONNECTION_OPEN)
+                {
+                    if (result == CONNECTION_ERROR)
+                    {
+                        // TODO : Real stats
+                        LOG("Error handling message\n");
+                    }
+
+                    LOG("Closing connection: socket fd %d\n", fds[i].fd);
+
+                    on_close(fds[i].fd, result);
+                    CLOSE_SOCKET(fds, nfds, i);
+                }
             }
         }
     }
 
     return EXIT_SUCCESS;
+}
+
+/**
+ * @brief This stores clients pending messages
+ */
+typedef struct Data
+{
+    /**
+     * @brief Please remember to free me later
+     */
+    void *ptr;
+    /**
+     * @brief Please never free me
+     */
+    char *data;
+    size_t length;
+    struct Data *next;
+} Data;
+
+typedef struct DataHeader
+{
+    Data *first;
+    Data *last;
+} DataHeader;
+
+static DataHeader pending[MAX_CLIENTS * 2 + 4];
+
+void asend(int client_fd, const char *message, size_t length)
+{
+    Data *data = malloc(sizeof(Data));
+
+    if (!data)
+    {
+        return;
+    }
+
+    data->ptr = malloc(length);
+
+    if (!data->ptr)
+    {
+        free(data);
+        return;
+    }
+
+    memcpy(data->ptr, message, length);
+
+    data->data = data->ptr;
+    data->length = length;
+
+    DataHeader *header = pending + client_fd;
+
+    if (header->first)
+    {
+        header->last->next = data;
+    } else {
+        header->first = data;
+    }
+
+    header->last = data;
+
+    fds[client_fd].events |= POLLOUT;
+}
+
+static ON_MESSAGE_RESULT time_to_asend(int client_fd)
+{
+    DataHeader *header = pending + client_fd;
+    Data *data = header->first;
+
+    if (!data)
+    {
+        fds[client_fd].events ^= POLLOUT;
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    size_t sent = send(client_fd, data->data, data->length, 0);
+    if (sent < 0)
+    {
+        freeData(data);
+        return CONNECTION_ERROR;
+    }
+
+    if (sent < data->length)
+    {
+        data->data = data->data + sent;
+        data->length = data->length - sent;
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    free(data->ptr);
+
+    Data *next = data->next;
+    free(data);
+
+    data->length = 0;
+
+    header->first = next;
+
+    if (!next)
+    {
+        header->last = NULL;
+        fds[client_fd].events ^= POLLOUT;
+    }
+
+    return KEEP_CONNECTION_OPEN;
+}
+
+static void freeData(Data *data)
+{
+    if (data->next)
+    {
+        freeData(data->next);
+    }
+
+    free(data->ptr);
+    free(data);
 }

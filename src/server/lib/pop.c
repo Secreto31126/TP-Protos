@@ -74,7 +74,7 @@ typedef struct Connection
     Mailfile mails[MAX_CLIENT_MAILS];
 } Connection;
 
-static Connection connections[MAX_CLIENTS] = {0};
+static Connection connections[MAX_CLIENTS * 2 + 4] = {0};
 
 /**
  * @brief The directory where the user mailboxes are stored.
