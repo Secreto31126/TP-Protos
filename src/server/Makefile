@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -fdiagnostics-color=always -lm
+CFLAGS = -Wall -fdiagnostics-color=always
 
 ifneq ($(DEBUG), 0)
 CFLAGS += -g -DDEVELOPMENT
@@ -23,7 +23,7 @@ log:
 	@echo
 
 $(EXEC):
-	$(CC) $(CFLAGS) -I$(HDR) -o $@ $(SRC)
+	$(CC) $(CFLAGS) -I$(HDR) -o $@ $(SRC) -lm
 
 clean:
 	rm -f $(OBJ) $(EXEC)
