@@ -473,7 +473,7 @@ static size_t handle_stat(Connection *client, char **response)
  * @brief Handles a DELE command.
  *
  * @param client The client connection.
- * @param msg The message number to delete.
+ * @param msg The message number to delete (1-indexed).
  * @param response The response to send back to the client.
  * @return size_t The length of the response.
  */
