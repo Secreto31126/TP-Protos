@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <logger.h>
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -462,10 +463,10 @@ static size_t handle_stat(Connection *client, char **response)
     }
 
     char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
-    snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu %zu"), count, size);
+    size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu %zu"), count, size);
 
     *response = buffer;
-    return strlen(buffer);
+    return fmin(len, MAX_POP3_RESPONSE_LENGTH);
 }
 
 /**
