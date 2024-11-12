@@ -131,7 +131,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
             }
 
             char buffer[1024] = {0};
-            int len = read(fds[i].fd, buffer, sizeof(buffer));
+            int len = recv(fds[i].fd, buffer, sizeof(buffer), 0);
 
             // Connection closed or error, remove from poll
             if (len <= 0)
