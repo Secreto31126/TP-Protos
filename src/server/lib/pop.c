@@ -116,7 +116,8 @@ static int parse_pop_cmd(char *cmd)
             *cmd = 0;
         }
 
-        if (!argc) {
+        if (!argc)
+        {
             *cmd = toupper(*cmd);
         }
 
@@ -257,7 +258,7 @@ static bool pass_valid(const char *username, const char *pass)
 
 /**
  * @brief Set the user emails in the client connection.
- * 
+ *
  * @param username The username (NULL terminated).
  * @param mails The client mails array.
  * @return true The mails were successfully loaded.
@@ -438,7 +439,7 @@ static bool handle_transaction_quit(Connection *client)
 
 /**
  * @brief Handles a STAT command.
- * 
+ *
  * @param client The client connection.
  * @param response The response to send back to the client.
  * @return size_t The length of the response.
@@ -469,7 +470,7 @@ static size_t handle_stat(Connection *client, char **response)
 
 /**
  * @brief Handles a DELE command.
- * 
+ *
  * @param client The client connection.
  * @param msg The message number to delete.
  * @param response The response to send back to the client.
@@ -499,7 +500,7 @@ static size_t handle_dele(Connection *client, size_t msg, char **response)
 
 /**
  * @brief Handles a message in the authorization state of a POP3 connection.
- * 
+ *
  * @param client The client connection.
  * @param client_fd The client file descriptor.
  * @param body The message body.
