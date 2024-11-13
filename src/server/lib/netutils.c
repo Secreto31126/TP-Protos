@@ -15,7 +15,32 @@
 // Array to hold client sockets and poll event types
 static struct pollfd fds[MAX_CLIENTS + 1];
 
-static ON_MESSAGE_RESULT time_to_async_send(int client_fd);
+/**
+ * @brief This stores clients pending messages
+ */
+typedef struct Data
+{
+    /**
+     * @brief Please remember to free me later
+     */
+    void *ptr;
+    /**
+     * @brief Please never free me
+     */
+    char *data;
+    size_t length;
+    struct Data *next;
+} Data;
+
+typedef struct DataHeader
+{
+    Data *first;
+    Data *last;
+} DataHeader;
+
+
+static ON_MESSAGE_RESULT time_to_asend(int client_fd);
+static void freeData(Data *data);
 
 int start_server(struct sockaddr_in *address, int port)
 {
@@ -189,29 +214,6 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
     return EXIT_SUCCESS;
 }
-
-/**
- * @brief This stores clients pending messages
- */
-typedef struct Data
-{
-    /**
-     * @brief Please remember to free me later
-     */
-    void *ptr;
-    /**
-     * @brief Please never free me
-     */
-    char *data;
-    size_t length;
-    struct Data *next;
-} Data;
-
-typedef struct DataHeader
-{
-    Data *first;
-    Data *last;
-} DataHeader;
 
 static DataHeader pending[MAX_CLIENTS * 2 + 4];
 
