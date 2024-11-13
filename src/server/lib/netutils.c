@@ -42,14 +42,10 @@ typedef struct DataHeader
 static ON_MESSAGE_RESULT time_to_asend(int client_fd);
 static void freeData(Data *data);
 
-int start_server(struct sockaddr_in *address, int port)
+int start_server(struct sockaddr_in *address)
 {
     int server_fd;
     int opt = 1;
-
-    address->sin_family = AF_INET;
-    address->sin_addr.s_addr = INADDR_ANY;
-    address->sin_port = htons(port);
 
     // Create socket file descriptor
     if ((server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
