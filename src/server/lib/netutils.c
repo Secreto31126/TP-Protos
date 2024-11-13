@@ -123,6 +123,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                 // Add new socket to fds array
                 fds[nfds].fd = new_socket;
                 fds[nfds].events = POLLIN;
+                fds[nfds].revents = 0;
                 nfds++;
             }
         }
