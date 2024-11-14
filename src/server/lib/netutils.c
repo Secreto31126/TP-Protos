@@ -12,9 +12,6 @@
     close(fds[i].fd);              \
     fds[i--] = fds[--nfds];
 
-// Array to hold client sockets and poll event types
-static struct pollfd fds[MAX_CLIENTS + 1];
-
 /**
  * @brief This stores clients pending messages
  */
@@ -38,9 +35,14 @@ typedef struct DataHeader
     Data *last;
 } DataHeader;
 
-
 static ON_MESSAGE_RESULT time_to_asend(int client_fd);
 static void freeData(Data *data);
+
+// Array to hold client sockets and poll event types
+static struct pollfd fds[MAX_CLIENTS + 1];
+
+// Array to hold pending messages for each client
+static DataHeader pending[MAX_CLIENTS * 2 + 4];
 
 int start_server(struct sockaddr_in *address)
 {
@@ -141,6 +143,8 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
             }
             else
             {
+                freeData(pending + new_socket);
+
                 // Add new socket to fds array
                 fds[nfds].fd = new_socket;
                 fds[nfds].events = POLLIN;
@@ -211,8 +215,6 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
     return EXIT_SUCCESS;
 }
 
-static DataHeader pending[MAX_CLIENTS * 2 + 4];
-
 void asend(int client_fd, const char *message, size_t length)
 {
     Data *data = malloc(sizeof(Data));
@@ -264,6 +266,8 @@ static ON_MESSAGE_RESULT time_to_asend(int client_fd)
     if (sent < 0)
     {
         freeData(data);
+        header->first = NULL;
+        header->last = NULL;
         return CONNECTION_ERROR;
     }
 
@@ -294,6 +298,11 @@ static ON_MESSAGE_RESULT time_to_asend(int client_fd)
 
 static void freeData(Data *data)
 {
+    if (!data)
+    {
+        return;
+    }
+
     if (data->next)
     {
         freeData(data->next);
