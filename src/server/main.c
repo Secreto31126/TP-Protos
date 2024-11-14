@@ -20,21 +20,23 @@ static void setup();
 
 static bool done = false;
 
-int main(int argc, const char* argv[])
+int main(int argc, const char *argv[])
 {
     struct sockaddr_in address_pop = {
         .sin_family = AF_INET,
         .sin_addr.s_addr = INADDR_ANY,
-        .sin_port = htons(DEFAULT_PORT_POP)
+        .sin_port = htons(DEFAULT_PORT_POP),
     };
-    
+
     struct sockaddr_in address_conf = {
         .sin_family = AF_INET,
         .sin_addr.s_addr = INADDR_ANY,
-        .sin_port = htons(DEFAULT_PORT_CONF)
+        .sin_port = htons(DEFAULT_PORT_CONF),
     };
 
-    parse_arguments(argc, argv, &address_pop, &address_conf, PROG_NAME);
+    const char *dir_path = NULL;
+
+    parse_arguments(argc, argv, PROG_NAME, &address_pop, &address_conf, &dir_path);
 
     setup();
 
@@ -47,7 +49,7 @@ int main(int argc, const char* argv[])
 
     LOG("Server listening on %s:%d...\n", inet_ntoa(address_pop.sin_addr), address_pop.sin_port);
 
-    pop_init(NULL);
+    pop_init(dir_path);
     return server_loop(server_fd, &done, handle_pop_connect, handle_pop_message, handle_pop_close);
 }
 

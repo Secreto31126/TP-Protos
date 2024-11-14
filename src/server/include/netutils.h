@@ -50,7 +50,7 @@ typedef void (*close_event)(const int client_fd, ON_MESSAGE_RESULT result);
 /**
  * @brief Initialize a TCP server in non-blocking mode.
  *
- * @param address The server address binded.
+ * @param address The server address to bind.
  * @return int The server file descriptor, or -1 if an error occurred.
  */
 int start_server(struct sockaddr_in *address);
