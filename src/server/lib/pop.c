@@ -27,6 +27,8 @@
 // Remember to include a space on the left of the message
 #define ERR_RESPONSE(m) POP3_ERR m POP3_ENTER
 
+#define POP_MIN(x) fmin((x), MAX_POP3_RESPONSE_LENGTH)
+
 #define MAX_CLIENT_MAILS 0x1000
 
 /**
@@ -466,7 +468,7 @@ static size_t handle_stat(Connection *client, char **response)
     size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu %zu"), count, size);
 
     *response = buffer;
-    return fmin(len, MAX_POP3_RESPONSE_LENGTH);
+    return POP_MIN(len);
 }
 
 /**
