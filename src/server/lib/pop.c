@@ -472,6 +472,33 @@ static size_t handle_stat(Connection *client, char **response)
 }
 
 /**
+ * @brief Handles a LIST command with arguments.
+ *
+ * @note Doesn't validate the message number is in range.
+ *
+ * @param client The client connection.
+ * @param msg The message number to list (1-indexed).
+ * @param response The response to send back to the client.
+ * @return size_t The length of the response.
+ */
+static size_t handle_list(Connection *client, size_t msg, char **response)
+{
+    Mailfile *mail = client->mails + (msg - 1);
+
+    if (!mail->uid[0])
+    {
+        *response = ERR_RESPONSE(" No such message");
+        return sizeof(ERR_RESPONSE(" No such message")) - 1;
+    }
+
+    char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
+    size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu %zu"), msg, mail->size);
+
+    *response = buffer;
+    return POP_MIN(len);
+}
+
+/**
  * @brief Handles a DELE command.
  *
  * @param client The client connection.
@@ -696,6 +723,52 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         }
 
         size_t len = handle_dele(client, msg, &buffer);
+        if (send(client_fd, buffer, len, 0) < 0)
+        {
+            LOG("Failed to send message back to client\n");
+            return CONNECTION_ERROR;
+        }
+
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    if (!strcmp(cmds, "LIST"))
+    {
+        if (argc > 1)
+        {
+            char response[] = ERR_RESPONSE(" Invalid number of arguments");
+            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
+            {
+                LOG("Failed to send message back to client\n");
+                return CONNECTION_ERROR;
+            }
+
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        if (!argc)
+        {
+            // return handle_list_all(client);
+        }
+
+        char *num = cmds + sizeof("LIST");
+
+        char *err;
+        size_t msg = strtoull(num, &err, 10);
+
+        if (*err || !(0 < msg && msg < MAX_CLIENT_MAILS) || !isdigit(*num))
+        {
+            char response[] = ERR_RESPONSE(" Invalid message number");
+            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
+            {
+                LOG("Failed to send message back to client\n");
+                return CONNECTION_ERROR;
+            }
+
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        size_t len = handle_list(client, msg, &buffer);
         if (send(client_fd, buffer, len, 0) < 0)
         {
             LOG("Failed to send message back to client\n");
