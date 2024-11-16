@@ -17,6 +17,12 @@ typedef struct hashset
     uint64_t elements_size;
 } hashset;
 
+typedef struct hashset_iterator
+{
+    const hashset *set;
+    uint64_t index;
+} hashset_iterator;
+
 /**
  * @brief Creates a hashset for (void *) elements
  *
@@ -35,14 +41,14 @@ hashset *new_hashset(hash_function hasher, compare_function compare, free_functi
  * @param element
  * @return char 1 if an element was overwritten, 0 otherwise
  */
-char hashset_add(hashset *set, const void *element);
+char hashset_add(hashset *set, void *element);
 
 /**
  * @brief Remove an element from the set
- * 
+ *
  * @note The element does not need to be populated, it is only necessary to populate the values used to identify it in the compare_function
- * @param set 
- * @param element 
+ * @param set
+ * @param element
  * @return char 1 if an element was removed, 0 otherwise
  */
 char hashset_delete(hashset *set, const void *element);
@@ -64,6 +70,14 @@ char hashset_contains(const hashset *set, const void *element);
  * @return void*
  */
 void *hashset_get(const hashset *set, const void *element);
+
+hashset_iterator *hashset_get_iterator(const hashset *set);
+
+void *hashset_next(hashset_iterator *iterator);
+
+char hashset_has_next(hashset_iterator *iterator);
+
+void free_hashset_iterator(hashset_iterator *iterator);
 
 /**
  * @brief Free the hashset and execute the free_function on all elements within
