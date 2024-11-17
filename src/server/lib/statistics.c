@@ -145,7 +145,7 @@ uint64_t get_all_logs(statistics_manager *sm, log *log_buffer, uint64_t log_buff
             log_buffer[index++] = *(u_log->logs[i]);
         }
     }
-    return index - 1;
+    return index;
 }
 
 uint64_t get_user_logs(statistics_manager *sm, char *username, log *log_buffer, uint64_t log_buffer_size)
@@ -161,7 +161,7 @@ uint64_t get_user_logs(statistics_manager *sm, char *username, log *log_buffer, 
     {
         log_buffer[i] = *(u_log->logs[i]);
     }
-    return i - 1;
+    return i;
 }
 
 uint64_t read_bytes_transferred(statistics_manager *sm, uint64_t bytes)
