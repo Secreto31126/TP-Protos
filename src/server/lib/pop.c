@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <logger.h>
 #include <math.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -56,6 +57,10 @@ typedef struct Mailfile
  */
 typedef struct Connection
 {
+    /**
+     * @brief The client file descriptor.
+     */
+    int fd;
     /**
      * @brief The client buffer for incomplete commands
      */
@@ -499,6 +504,96 @@ static size_t handle_list(Connection *client, size_t msg, char **response)
 }
 
 /**
+ * @brief Handles a LIST command without arguments.
+ *
+ * @note Multi-line response, handles the sends internally.
+ *
+ * @param client The client connection.
+ * @param client_fd The client file descriptor.
+ * @return KEEP_CONNECTION_OPEN always.
+ */
+static ON_MESSAGE_RESULT handle_list_all(Connection *client, int client_fd)
+{
+    size_t size = 0;
+    size_t count = 0;
+
+    Mailfile *mails = client->mails;
+    while (mails->uid[0])
+    {
+        if (!mails->deleted)
+        {
+            size += mails->size;
+            count++;
+        }
+
+        mails++;
+    }
+
+    char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
+    size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu messages (%zu octets)"), count, size);
+
+    asend(client_fd, buffer, POP_MIN(len));
+
+    mails = client->mails;
+    while (mails->uid[0])
+    {
+        if (mails->deleted)
+        {
+            mails++;
+            continue;
+        }
+
+        char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
+        size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, "%zu %zu" POP3_ENTER, count, size);
+
+        asend(client_fd, buffer, POP_MIN(len));
+
+        mails++;
+    }
+
+    asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
+
+    return KEEP_CONNECTION_OPEN;
+}
+
+static size_t handle_retr(Connection *client, size_t msg, char **response)
+{
+    Mailfile *mail = client->mails + (msg - 1);
+
+    if (!mail->uid[0])
+    {
+        *response = ERR_RESPONSE(" No such message");
+        return sizeof(ERR_RESPONSE(" No such message")) - 1;
+    }
+
+    if (mail->deleted)
+    {
+        *response = ERR_RESPONSE(" Message already deleted");
+        return sizeof(ERR_RESPONSE(" Message already deleted")) - 1;
+    }
+
+    char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mail->uid)];
+    snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, client->username, mail->uid);
+
+    FILE *file = fopen(path, "r");
+    if (!file)
+    {
+        *response = ERR_RESPONSE(" Failed to open message");
+        return sizeof(ERR_RESPONSE(" Failed to open message")) - 1;
+    }
+
+    fseek(file, 0, SEEK_END);
+    size_t size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
+    size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu octets"), size);
+
+    *response = buffer;
+    return POP_MIN(len);
+}
+
+/**
  * @brief Handles a DELE command.
  *
  * @param client The client connection.
@@ -562,33 +657,18 @@ static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int 
             if (argc < 1)
             {
                 char response[] = ERR_RESPONSE(" Invalid number of arguments");
-                if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
-                {
-                    LOG("Failed to send message back to client\n");
-                    return CONNECTION_ERROR;
-                }
-
+                asend(client_fd, response, sizeof(response) - 1);
                 return KEEP_CONNECTION_OPEN;
             }
 
             // Spaces are accepted as part of the password, so don't use the parsed args
             size_t len = handle_pass(client, body + 5, &buffer);
-            if (send(client_fd, buffer, len, 0) < 0)
-            {
-                LOG("Failed to send message back to client\n");
-                return CONNECTION_ERROR;
-            }
-
+            asend(client_fd, buffer, len);
             return KEEP_CONNECTION_OPEN;
         }
 
         char response[] = ERR_RESPONSE(" Expected PASS command");
-        if (send(client_fd, response, sizeof(response), 0) < 0)
-        {
-            LOG("Failed to send message back to client\n");
-            return CONNECTION_ERROR;
-        }
-
+        asend(client_fd, response, sizeof(response));
         return KEEP_CONNECTION_OPEN;
     }
 
@@ -597,32 +677,17 @@ static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int 
         if (argc != 1)
         {
             char response[] = ERR_RESPONSE(" Invalid number of arguments");
-            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
-            {
-                LOG("Failed to send message back to client\n");
-                return CONNECTION_ERROR;
-            }
-
+            asend(client_fd, response, sizeof(response) - 1);
             return KEEP_CONNECTION_OPEN;
         }
 
         size_t len = handle_user(client, cmds + sizeof("USER"), &buffer);
-        if (send(client_fd, buffer, len, 0) < 0)
-        {
-            LOG("Failed to send message back to client\n");
-            return CONNECTION_ERROR;
-        }
-
+        asend(client_fd, buffer, len);
         return KEEP_CONNECTION_OPEN;
     }
 
     char response[] = ERR_RESPONSE(" Invalid command");
-    if (send(client_fd, response, sizeof(response), 0) < 0)
-    {
-        LOG("Failed to send message back to client\n");
-        return CONNECTION_ERROR;
-    }
-
+    asend(client_fd, response, sizeof(response));
     return KEEP_CONNECTION_OPEN;
 }
 
@@ -655,12 +720,7 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         if (!success)
         {
             char response[] = ERR_RESPONSE(" Failed to update mailbox");
-            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
-            {
-                LOG("Failed to send message back to client\n");
-                return CONNECTION_ERROR;
-            }
-
+            asend(client_fd, response, sizeof(response) - 1);
             return KEEP_CONNECTION_OPEN;
         }
 
@@ -670,24 +730,14 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
     if (!strcmp(cmds, "NOOP"))
     {
         size_t len = handle_noop(&buffer);
-        if (send(client_fd, buffer, len, 0) < 0)
-        {
-            LOG("Failed to send message back to client\n");
-            return CONNECTION_ERROR;
-        }
-
+        asend(client_fd, buffer, len);
         return KEEP_CONNECTION_OPEN;
     }
 
     if (!strcmp(cmds, "STAT"))
     {
         size_t len = handle_stat(client, &buffer);
-        if (send(client_fd, buffer, len, 0) < 0)
-        {
-            LOG("Failed to send message back to client\n");
-            return CONNECTION_ERROR;
-        }
-
+        asend(client_fd, buffer, len);
         return KEEP_CONNECTION_OPEN;
     }
 
@@ -696,12 +746,7 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         if (argc != 1)
         {
             char response[] = ERR_RESPONSE(" Invalid number of arguments");
-            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
-            {
-                LOG("Failed to send message back to client\n");
-                return CONNECTION_ERROR;
-            }
-
+            asend(client_fd, response, sizeof(response) - 1);
             return KEEP_CONNECTION_OPEN;
         }
 
@@ -713,22 +758,12 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         if (*err || !(0 < msg && msg < MAX_CLIENT_MAILS) || !isdigit(*num))
         {
             char response[] = ERR_RESPONSE(" Invalid message number");
-            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
-            {
-                LOG("Failed to send message back to client\n");
-                return CONNECTION_ERROR;
-            }
-
+            asend(client_fd, response, sizeof(response) - 1);
             return KEEP_CONNECTION_OPEN;
         }
 
         size_t len = handle_dele(client, msg, &buffer);
-        if (send(client_fd, buffer, len, 0) < 0)
-        {
-            LOG("Failed to send message back to client\n");
-            return CONNECTION_ERROR;
-        }
-
+        asend(client_fd, buffer, len);
         return KEEP_CONNECTION_OPEN;
     }
 
@@ -737,18 +772,13 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         if (argc > 1)
         {
             char response[] = ERR_RESPONSE(" Invalid number of arguments");
-            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
-            {
-                LOG("Failed to send message back to client\n");
-                return CONNECTION_ERROR;
-            }
-
+            asend(client_fd, response, sizeof(response) - 1);
             return KEEP_CONNECTION_OPEN;
         }
 
         if (!argc)
         {
-            // return handle_list_all(client);
+            return handle_list_all(client, client_fd);
         }
 
         char *num = cmds + sizeof("LIST");
@@ -759,32 +789,17 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         if (*err || !(0 < msg && msg < MAX_CLIENT_MAILS) || !isdigit(*num))
         {
             char response[] = ERR_RESPONSE(" Invalid message number");
-            if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
-            {
-                LOG("Failed to send message back to client\n");
-                return CONNECTION_ERROR;
-            }
-
+            asend(client_fd, response, sizeof(response) - 1);
             return KEEP_CONNECTION_OPEN;
         }
 
         size_t len = handle_list(client, msg, &buffer);
-        if (send(client_fd, buffer, len, 0) < 0)
-        {
-            LOG("Failed to send message back to client\n");
-            return CONNECTION_ERROR;
-        }
-
+        asend(client_fd, buffer, len);
         return KEEP_CONNECTION_OPEN;
     }
 
     char response[] = ERR_RESPONSE(" Invalid command");
-    if (send(client_fd, response, sizeof(response), 0) < 0)
-    {
-        LOG("Failed to send message back to client\n");
-        return CONNECTION_ERROR;
-    }
-
+    asend(client_fd, response, sizeof(response) - 1);
     return KEEP_CONNECTION_OPEN;
 }
 
@@ -818,12 +833,7 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address)
     connections[client_fd].authenticated = false;
 
     char response[] = OK_RESPONSE(" POP3 server ready");
-    if (send(client_fd, response, sizeof(response) - 1, 0) < 0)
-    {
-        LOG("Failed to send message back to client\n");
-        return CONNECTION_ERROR;
-    }
-
+    asend(client_fd, response, sizeof(response) - 1);
     return KEEP_CONNECTION_OPEN;
 }
 
@@ -890,8 +900,5 @@ void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
         return;
     }
 
-    if (send(client_fd, OK_RESPONSE(" Bye!"), sizeof(OK_RESPONSE(" Bye!")) - 1, 0) < 0)
-    {
-        LOG("Failed to send last message back to client\n");
-    }
+    asend(client_fd, OK_RESPONSE(" Bye!"), sizeof(OK_RESPONSE(" Bye!")) - 1);
 }

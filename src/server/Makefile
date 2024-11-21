@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -fdiagnostics-color=always
+CFLAGS = -pthread -Wall -fdiagnostics-color=always
 
 ifneq ($(DEBUG), 0)
 CFLAGS += -g -DDEVELOPMENT
