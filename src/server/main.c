@@ -47,7 +47,7 @@ int main(int argc, const char *argv[])
         return EXIT_FAILURE;
     }
 
-    LOG("Server listening on %s:%d...\n", inet_ntoa(address_pop.sin_addr), address_pop.sin_port);
+    LOG("Server listening on %s:%d...\n", inet_ntoa(address_pop.sin_addr), ntohs(address_pop.sin_port));
 
     pop_init(dir_path);
     return server_loop(server_fd, &done, handle_pop_connect, handle_pop_message, handle_pop_close);
