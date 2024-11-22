@@ -73,6 +73,10 @@ typedef struct Connection
      */
     bool authenticated;
     /**
+     * @brief If the client mails need to be updated (UPDATE state)
+     */
+    bool update;
+    /**
      * @brief The client mails (loaded after the AUTHORIZATION state)
      */
     Mailfile mails[MAX_CLIENT_MAILS];
@@ -108,6 +112,7 @@ void pop_init(const char *dir, const char *transformer, const char *bytestuffer)
     {
         connections[i].username[0] = 0;
         connections[i].authenticated = false;
+        connections[i].update = false;
     }
 }
 
@@ -419,40 +424,6 @@ static size_t handle_noop(char **response)
 }
 
 /**
- * @brief Handles a QUIT command in the transaction state.
- * Executes the UPDATE state logic.
- *
- * @param client The client connection.
- * @return true if the UPDATE was successful.
- * @return false if the UPDATE failed.
- */
-static bool handle_transaction_quit(Connection *client)
-{
-    Mailfile *mails = client->mails;
-    while (mails->uid[0])
-    {
-        if (!mails->deleted)
-        {
-            mails++;
-            continue;
-        }
-
-        char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mails->uid)];
-        snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, client->username, mails->uid);
-
-        if (remove(path) < 0)
-        {
-            LOG("Failed to remove mail %s\n", mails->uid);
-            return false;
-        }
-
-        mails++;
-    }
-
-    return true;
-}
-
-/**
  * @brief Handles a STAT command.
  *
  * @param client The client connection.
@@ -724,16 +695,7 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
 
     if (!strcmp(cmds, "QUIT"))
     {
-        bool success = handle_transaction_quit(client);
-
-        // Not sure if this block of code is RFC compliant
-        if (!success)
-        {
-            char response[] = ERR_RESPONSE(" Failed to update mailbox");
-            asend(client_fd, response, sizeof(response) - 1);
-            return KEEP_CONNECTION_OPEN;
-        }
-
+        client->update = true;
         return CLOSE_CONNECTION;
     }
 
@@ -824,6 +786,12 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
  */
 static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd, char *cmd, size_t length)
 {
+    // If the client is already on the UPDATE state, ignore the message
+    if (client->update)
+    {
+        return KEEP_CONNECTION_OPEN;
+    }
+
     // Authorization state
     if (!client->authenticated)
     {
@@ -841,6 +809,7 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address)
     connections[client_fd].buffer[0] = 0;
     connections[client_fd].username[0] = 0;
     connections[client_fd].authenticated = false;
+    connections[client_fd].update = false;
 
     char response[] = OK_RESPONSE(" POP3 server ready");
     asend(client_fd, response, sizeof(response) - 1);
@@ -899,16 +868,40 @@ void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
 {
     Connection *client = connections + client_fd;
 
+    if (result == CONNECTION_ERROR)
+    {
+        return;
+    }
+
+    if (client->update)
+    {
+        Mailfile *mails = client->mails;
+        while (mails->uid[0])
+        {
+            if (!mails->deleted)
+            {
+                mails++;
+                continue;
+            }
+
+            char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mails->uid)];
+            snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, client->username, mails->uid);
+
+            if (remove(path) < 0)
+            {
+                LOG("Failed to remove mail %s\n", mails->uid);
+            }
+
+            mails++;
+        }
+    }
+
     remove_lock(client->username);
 
     // Privacy friendly
     memset(client->username, 0, sizeof(client->username));
     client->authenticated = false;
-
-    if (result == CONNECTION_ERROR)
-    {
-        return;
-    }
+    client->update = false;
 
     asend(client_fd, OK_RESPONSE(" Bye!"), sizeof(OK_RESPONSE(" Bye!")) - 1);
 }
