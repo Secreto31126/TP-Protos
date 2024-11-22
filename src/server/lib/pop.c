@@ -541,20 +541,30 @@ static ON_MESSAGE_RESULT handle_list_all(Connection *client, int client_fd)
     return KEEP_CONNECTION_OPEN;
 }
 
-static size_t handle_retr(Connection *client, size_t msg, char **response)
+/**
+ * @brief Handles a RETR command.
+ *
+ * @note Multi-line response, handles the sends internally.
+ *
+ * @param client The client connection.
+ * @param msg The message number to retrieve (1-indexed).
+ * @param client_fd The client file descriptor.
+ * @return KEEP_CONNECTION_OPEN always.
+ */
+static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_fd)
 {
     Mailfile *mail = client->mails + (msg - 1);
 
     if (!mail->uid[0])
     {
-        *response = ERR_RESPONSE(" No such message");
-        return sizeof(ERR_RESPONSE(" No such message")) - 1;
+        char response[] = ERR_RESPONSE(" No such message");
+        asend(client_fd, response, sizeof(response) - 1);
     }
 
     if (mail->deleted)
     {
-        *response = ERR_RESPONSE(" Message already deleted");
-        return sizeof(ERR_RESPONSE(" Message already deleted")) - 1;
+        char response[] = ERR_RESPONSE(" Message already deleted");
+        asend(client_fd, response, sizeof(response) - 1);
     }
 
     char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mail->uid)];
@@ -563,19 +573,37 @@ static size_t handle_retr(Connection *client, size_t msg, char **response)
     FILE *file = fopen(path, "r");
     if (!file)
     {
-        *response = ERR_RESPONSE(" Failed to open message");
-        return sizeof(ERR_RESPONSE(" Failed to open message")) - 1;
+        char response[] = ERR_RESPONSE(" Failed to open message");
+        asend(client_fd, response, sizeof(response) - 1);
     }
 
     fseek(file, 0, SEEK_END);
     size_t size = ftell(file);
     fseek(file, 0, SEEK_SET);
 
+    fclose(file);
+
     char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
     size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu octets"), size);
 
-    *response = buffer;
-    return POP_MIN(len);
+    asend(client_fd, buffer, POP_MIN(len));
+
+    char cmd[strlen(mutator) + sizeof(" ") + strlen(path) + sizeof(" | ") + strlen(stuffer)];
+    snprintf(cmd, sizeof(cmd), "%s %s", mutator, path);
+
+    FILE *transformed = popen(mutator, "r");
+    setvbuf(transformed, NULL, _IONBF, 0);
+
+    if (!transformed)
+    {
+        char response[] = ERR_RESPONSE(" Failed to transform message");
+        asend(client_fd, response, sizeof(response) - 1);
+    }
+
+    fasend(client_fd, transformed, pclose);
+    asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
+
+    return KEEP_CONNECTION_OPEN;
 }
 
 /**
@@ -768,6 +796,30 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         size_t len = handle_list(client, msg, &buffer);
         asend(client_fd, buffer, len);
         return KEEP_CONNECTION_OPEN;
+    }
+
+    if (!strcmp(cmds, "RETR"))
+    {
+        if (argc != 1)
+        {
+            char response[] = ERR_RESPONSE(" Invalid number of arguments");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        char *num = cmds + sizeof("RETR");
+
+        char *err;
+        size_t msg = strtoull(num, &err, 10);
+
+        if (*err || !(0 < msg && msg < MAX_CLIENT_MAILS) || !isdigit(*num))
+        {
+            char response[] = ERR_RESPONSE(" Invalid message number");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        return handle_retr(client, msg, client_fd);
     }
 
     char response[] = ERR_RESPONSE(" Invalid command");
