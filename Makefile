@@ -14,5 +14,6 @@ bytestuff:
 
 clean:
 	make clean -C src/server
+	make clean -C src/bytestuff
 
 .PHONY: all server clean
