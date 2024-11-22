@@ -8,6 +8,7 @@ before:
 
 server:
 	make all -C src/server
+	rm -f dist/mail/*/lock
 
 bytestuff:
 	make all -C src/bytestuff
