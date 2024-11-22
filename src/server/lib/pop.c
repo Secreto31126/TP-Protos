@@ -591,7 +591,7 @@ static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_
     char cmd[strlen(mutator) + sizeof(" ") + strlen(path) + sizeof(" | ") + strlen(stuffer)];
     snprintf(cmd, sizeof(cmd), "%s %s", mutator, path);
 
-    FILE *transformed = popen(mutator, "r");
+    FILE *transformed = popen(cmd, "r");
     setvbuf(transformed, NULL, _IONBF, 0);
 
     if (!transformed)
