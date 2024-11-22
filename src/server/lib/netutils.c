@@ -635,7 +635,7 @@ static void free_data(Data *data)
     {
         free(data->raw.ptr);
     }
-    else
+    else if (data->type == MESSAGE_SPLITTER)
     {
         free_data(data->splitter.messages.first);
     }
