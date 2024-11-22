@@ -468,14 +468,10 @@ bool fasend(int client_fd, FILE *file, read_event callback)
     pending[file_fd].client_fd = client_fd;
     pending[file_fd].file = file;
 
-    sem_wait(&fds_mutex);
-
     fds[nfds].fd = file_fd;
     fds[nfds].events = POLLIN;
     fds[nfds].revents = 0;
     nfds++;
-
-    sem_post(&fds_mutex);
 
     splitter->type = MESSAGE_SPLITTER;
     splitter->splitter.fd = file_fd;

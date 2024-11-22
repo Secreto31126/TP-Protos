@@ -81,6 +81,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
 /**
  * @brief Asynchronously send a package to a client.
+ * @note Can only be called during an event.
  *
  * @param client_fd The client file descriptor.
  * @param message The message to send.
@@ -89,6 +90,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 void asend(int client_fd, const char *message, size_t length);
 /**
  * @brief Asynchronously read a file and send it to a client.
+ * @note Can only be called during an event.
  *
  * @param client_fd The client file descriptor.
  * @param filename The file to read.
