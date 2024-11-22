@@ -301,6 +301,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                     if (finished)
                     {
                         pending[fd].read_callback(pending[fd].file);
+                        fds[i--] = fds[--nfds];
                     }
                 }
 
@@ -318,6 +319,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                         while (splitter)
                         {
                             pending[fd].read_callback(pending[fd].file);
+                            // TODO: Remove file from poll
                         }
 
                         free_data(pending[fd].messages.first);
@@ -333,6 +335,10 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
                     if (result != KEEP_CONNECTION_OPEN)
                     {
+                        LOG("Closing connection: socket fd %d\n", fd);
+
+                        on_close(fd, result);
+
                         if (result == CONNECTION_ERROR)
                         {
                             // TODO: Real stats
@@ -343,17 +349,15 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                             continue;
                         }
 
-                        LOG("Closing connection: socket fd %d\n", fd);
-
                         Data *splitter = pending[fd].splitters.first;
                         while (splitter)
                         {
                             pending[fd].read_callback(pending[fd].file);
+                            // TODO: Remove file from poll
                         }
 
                         free_data(pending[fd].messages.first);
 
-                        on_close(fd, result);
                         CLOSE_SOCKET(fds, nfds, i);
                         continue;
                     }
@@ -654,6 +658,7 @@ static bool finish_transmition(DataList *list, int client_fd, int fds_index)
     }
 
     data->type = ESC;
+    data->next = NULL;
 
     list->last->next = data;
     list->last = data;
