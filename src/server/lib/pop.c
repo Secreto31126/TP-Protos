@@ -85,7 +85,7 @@ typedef struct Connection
 static Connection connections[MAGIC_NUMBER] = {0};
 
 /**
- * @brief The directory where the user mailboxes are stored.
+ * @brief The directory where the users mailboxes are stored.
  */
 static const char *maildir;
 
