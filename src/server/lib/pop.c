@@ -583,10 +583,8 @@ static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_
 
     fclose(file);
 
-    char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
-    size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu octets"), size);
-
-    asend(client_fd, buffer, POP_MIN(len));
+    char buffer[] = OK_RESPONSE();
+    asend(client_fd, buffer, sizeof(buffer) - 1);
 
     char cmd[sizeof("cat ") + strlen(path) + sizeof(" | ") + strlen(mutator) + sizeof(" | ") + strlen(stuffer)];
     snprintf(cmd, sizeof(cmd) - 1, "cat %s | %s | %s", path, mutator, stuffer);
