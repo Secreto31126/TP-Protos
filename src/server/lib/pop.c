@@ -87,17 +87,17 @@ static const char *maildir;
 /**
  * @brief The transformer to use for the mail messages.
  */
-static const char *transformer;
+static const char *mutator;
 /**
  * @brief The path to the bytestuffer program.
  */
-static const char *bytestuffer;
+static const char *stuffer;
 
 void pop_init(const char *dir, const char *transformer, const char *bytestuffer)
 {
     maildir = dir ? dir : "./dist/mail";
-    transformer = transformer ? transformer : "cat";
-    bytestuffer = bytestuffer ? bytestuffer : "./dist/bytestuff";
+    mutator = transformer ? transformer : "cat";
+    stuffer = bytestuffer ? bytestuffer : "./dist/bytestuff";
 
     if (access(maildir, F_OK) == -1)
     {
