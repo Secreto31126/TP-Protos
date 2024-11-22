@@ -413,10 +413,10 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
 
     if (data->type == MESSAGE_SPLITTER)
     {
-        bool delete_node = false;
-        ON_MESSAGE_RESULT result = time_to_send(&data->splitter.messages, client_fd, -1, &delete_node);
+        bool empty_splitter = false;
+        ON_MESSAGE_RESULT result = time_to_send(&data->splitter.messages, client_fd, -1, &empty_splitter);
 
-        if (delete_node && data->splitter.fd < 0)
+        if (empty_splitter && data->splitter.fd < 0)
         {
             Data *next = data->next;
 
