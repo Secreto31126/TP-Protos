@@ -588,8 +588,8 @@ static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_
 
     asend(client_fd, buffer, POP_MIN(len));
 
-    char cmd[strlen(mutator) + sizeof(" ") + strlen(path) + sizeof(" | ") + strlen(stuffer)];
-    snprintf(cmd, sizeof(cmd), "%s %s", mutator, path);
+    char cmd[sizeof("cat ") + strlen(path) + sizeof(" | ") + strlen(mutator) + sizeof(" | ") + strlen(stuffer)];
+    snprintf(cmd, sizeof(cmd) - 1, "cat %s | %s | %s", path, mutator, stuffer);
 
     FILE *transformed = popen(cmd, "r");
     setvbuf(transformed, NULL, _IONBF, 0);
