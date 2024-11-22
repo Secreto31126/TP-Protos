@@ -88,10 +88,20 @@ static Connection connections[MAGIC_NUMBER] = {0};
  * @brief The directory where the users mailboxes are stored.
  */
 static const char *maildir;
+/**
+ * @brief The transformer to use for the mail messages.
+ */
+static const char *transformer;
+/**
+ * @brief The path to the bytestuffer program.
+ */
+static const char *bytestuffer;
 
-void pop_init(const char *dir)
+void pop_init(const char *dir, const char *transformer, const char *bytestuffer)
 {
     maildir = dir ? dir : "./dist/mail";
+    transformer = transformer ? transformer : "cat";
+    bytestuffer = bytestuffer ? bytestuffer : "./dist/bytestuff";
 
     if (access(maildir, F_OK) == -1)
     {

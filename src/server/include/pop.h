@@ -5,10 +5,13 @@
 
 /**
  * @brief Initialize the POP3 server.
+ * @note The transformer must take a filename as last argument.
  *
  * @param dir The mail directory, defaults to "./dist/mail".
+ * @param transformer The transformer to use for the mail messages, defaults to "cat".
+ * @param bytestuffer The path to the bytestuffer program, defaults to "./dist/bytestuff".
  */
-void pop_init(const char *dir);
+void pop_init(const char *dir, const char *transformer, const char *bytestuffer);
 
 /**
  * @brief Handle a POP3 connection. Populates the client connection with the initial state.
