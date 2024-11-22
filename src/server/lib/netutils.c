@@ -300,7 +300,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
                     if (finished)
                     {
-                        pending[fd].read_callback(pending[fd].file, fd);
+                        pending[fd].read_callback(pending[fd].file);
                     }
                 }
 
@@ -317,7 +317,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                         Data *splitter = pending[fd].splitters.first;
                         while (splitter)
                         {
-                            pending[fd].read_callback(pending[fd].file, -1);
+                            pending[fd].read_callback(pending[fd].file);
                         }
 
                         free_data(pending[fd].messages.first);
@@ -348,7 +348,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                         Data *splitter = pending[fd].splitters.first;
                         while (splitter)
                         {
-                            pending[fd].read_callback(pending[fd].file, -1);
+                            pending[fd].read_callback(pending[fd].file);
                         }
 
                         free_data(pending[fd].messages.first);

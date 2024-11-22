@@ -52,9 +52,9 @@ typedef void (*close_event)(const int client_fd, ON_MESSAGE_RESULT result);
  * @brief Handle a finished read and send event
  *
  * @param file The file that has been read.
- * @param client_fd The associated client file descriptor, -1 if the client disconnected or failed to send.
+ * @return int Unused.
  */
-typedef void (*read_event)(FILE *file, const int client_fd);
+typedef int (*read_event)(FILE *file);
 
 /**
  * @brief Initialize a TCP server in non-blocking mode.
