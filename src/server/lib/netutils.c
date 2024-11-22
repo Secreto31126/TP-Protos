@@ -274,6 +274,9 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                 {
                     // TODO: Real stats
                     LOG("Error handling message\n");
+
+                    close(new_socket);
+                    nfds--;
                 }
                 else if (finish_transmition(&pending[new_socket].messages, new_socket, nfds - 1))
                 {
