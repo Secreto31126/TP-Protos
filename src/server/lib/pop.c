@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <logger.h>
+#include <magic.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -81,7 +82,7 @@ typedef struct Connection
     Mailfile mails[MAX_CLIENT_MAILS];
 } Connection;
 
-static Connection connections[MAX_CLIENTS * 2 + 4] = {0};
+static Connection connections[MAGIC_NUMBER] = {0};
 
 /**
  * @brief The directory where the user mailboxes are stored.
