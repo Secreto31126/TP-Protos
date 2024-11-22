@@ -461,7 +461,7 @@ bool fasend(int client_fd, FILE *file, read_event callback)
         return false;
     }
 
-    int file_fd = fileno(file);
+    int file_fd = fileno_unlocked(file);
 
     pending[file_fd].type = FD_FILE;
     pending[file_fd].read_callback = callback;
@@ -516,7 +516,7 @@ bool fasend(int client_fd, FILE *file, read_event callback)
 static bool time_to_read(int client_fd, FILE *file)
 {
     Data *splitter = pending[client_fd].splitters.first;
-    while (splitter && splitter->splitter.fd != fileno(file))
+    while (splitter && splitter->splitter.fd != fileno_unlocked(file))
     {
         splitter = splitter->splitter.next;
     }
@@ -534,7 +534,7 @@ static bool time_to_read(int client_fd, FILE *file)
         iasend(&splitter->splitter.messages, client_fd, message, length);
     }
 
-    if (feof(file) || ferror(file))
+    if (feof_unlocked(file) || ferror_unlocked(file))
     {
         splitter->splitter.fd = -1;
         return false;
