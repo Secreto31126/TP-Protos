@@ -227,8 +227,6 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
             LOG("New connection: socket fd %s:%d\n", inet_ntoa(address.sin_addr), new_socket);
 
-            ON_MESSAGE_RESULT result = on_connection(new_socket, address);
-
             free_data(pending[new_socket].messages.first);
             pending[new_socket].type = FD_SOCKET;
             pending[new_socket].messages.first = NULL;
@@ -239,6 +237,8 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
             fds[nfds].events = POLLIN;
             fds[nfds].revents = 0;
             nfds++;
+
+            ON_MESSAGE_RESULT result = on_connection(new_socket, address);
 
             if (result != KEEP_CONNECTION_OPEN)
             {
