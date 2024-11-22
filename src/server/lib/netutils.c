@@ -115,6 +115,7 @@ static void iasend(DataList *list, int client_fd, const char *message, size_t le
  * @param fds_index The poll array index of the client.
  * @param empty_node Indicates if the node must be removed from the list. The root call must send NULL.
  * @return KEEP_CONNECTION_OPEN to keep the connection open
+ * @return CLOSE_CONNECTION to close the connection (an ESC node was found)
  * @return CONNECTION_ERROR if an error happened sending the message
  */
 static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_index, bool *empty_node);
@@ -412,6 +413,14 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
 
         *empty_node = true;
         return KEEP_CONNECTION_OPEN;
+    }
+
+    if (data->type == ESC)
+    {
+        free_data(data);
+        list->first = NULL;
+        list->last = NULL;
+        return CLOSE_CONNECTION;
     }
 
     if (data->type == MESSAGE_SPLITTER)
