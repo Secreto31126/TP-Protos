@@ -1,4 +1,4 @@
-all: before server
+all: before server bytestuff
 
 before:
 	@echo
@@ -8,6 +8,9 @@ before:
 
 server:
 	make all -C src/server
+
+bytestuff:
+	make all -C src/bytestuff
 
 clean:
 	make clean -C src/server
