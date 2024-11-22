@@ -292,6 +292,21 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
         {
             int fd = fds[i].fd;
 
+            if (fds[i].revents & POLLERR)
+            {
+                LOG("Error on fd %d\n", fd);
+                
+                if (pending[fd].type == FD_FILE)
+                {
+                    pending[fd].read_callback(pending[fd].file);
+                    fds[i--] = fds[--nfds];
+                    continue;
+                }
+
+                on_close(fd, CONNECTION_ERROR);
+                CLOSE_SOCKET(fds, nfds, i);
+            }
+
             if (fds[i].revents & POLLIN)
             {
                 if (pending[fd].type == FD_FILE)
