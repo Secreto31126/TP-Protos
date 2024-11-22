@@ -438,6 +438,11 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
                 return time_to_send(list, client_fd, fds_index, empty_node);
             }
         }
+        else if (empty_splitter)
+        {
+            // Disable POLLOUT if no more messages in splitter but it's still open
+            fds[fds_index].events &= ~POLLOUT;
+        }
 
         return result;
     }
