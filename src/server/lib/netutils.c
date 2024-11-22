@@ -436,22 +436,20 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
 
             list->first = next;
 
-            if (!next)
+            if (next)
             {
-                list->last = NULL;
+                return time_to_send(list, client_fd, fds_index, empty_node);
+            }
 
-                if (!empty_node)
-                {
-                    fds[fds_index].events &= ~POLLOUT;
-                }
-                else
-                {
-                    *empty_node = true;
-                }
+            list->last = NULL;
+
+            if (!empty_node)
+            {
+                fds[fds_index].events &= ~POLLOUT;
             }
             else
             {
-                return time_to_send(list, client_fd, fds_index, empty_node);
+                *empty_node = true;
             }
         }
         else if (empty_splitter)
