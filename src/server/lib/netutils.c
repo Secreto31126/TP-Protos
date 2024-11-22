@@ -27,8 +27,18 @@ typedef struct Data
 {
     enum
     {
+        /**
+         * @brief Data with content that can be transmited to a client
+         */
         RAW_DATA,
+        /**
+         * @brief A branch of messages from the master queue,
+         * asserting messages order without blocking the main list.
+         */
         MESSAGE_SPLITTER,
+        /**
+         * @brief Indicates that the connection can be closed gracefully
+         */
         ESC
     } type;
     union
@@ -119,7 +129,23 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
  * @return false Close the file and remove it from the poll
  */
 static bool time_to_read(int client_fd, FILE *file);
+/**
+ * @brief Gracefully stop a socket connection,
+ * disabling the POLLIN event and appending an ESC node
+ * if the list still contains pending messages
+ *
+ * @param list The DataList of pending messages.
+ * @param client_fd The client file descriptor.
+ * @param fds_index The poll array index of the client.
+ * @return true The connection can be closed immediately
+ * @return false The connection must wait until all messages are sent
+ */
 static bool finish_transmition(DataList *list, int client_fd, int fds_index);
+/**
+ * @brief Recursively deallocate the memory of a Data linked list
+ * 
+ * @param data The first node of the linked list
+ */
 static void free_data(Data *data);
 
 // Array to hold client sockets and poll event types
