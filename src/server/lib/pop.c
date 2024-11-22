@@ -496,6 +496,12 @@ static size_t handle_list(Connection *client, size_t msg, char **response)
         return sizeof(ERR_RESPONSE(" No such message")) - 1;
     }
 
+    if (mail->deleted)
+    {
+        *response = ERR_RESPONSE(" Message already deleted");
+        return sizeof(ERR_RESPONSE(" Message already deleted")) - 1;
+    }
+
     char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
     size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu %zu"), msg, mail->size);
 
@@ -534,6 +540,7 @@ static ON_MESSAGE_RESULT handle_list_all(Connection *client, int client_fd)
 
     asend(client_fd, buffer, POP_MIN(len));
 
+    size_t i = 1;
     mails = client->mails;
     while (mails->uid[0])
     {
@@ -544,7 +551,7 @@ static ON_MESSAGE_RESULT handle_list_all(Connection *client, int client_fd)
         }
 
         char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
-        size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, "%zu %zu" POP3_ENTER, count, size);
+        size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, "%zu %zu" POP3_ENTER, i++, mails->size);
 
         asend(client_fd, buffer, POP_MIN(len));
 
