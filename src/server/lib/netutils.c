@@ -444,6 +444,10 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
                 {
                     fds[fds_index].events &= ~POLLOUT;
                 }
+                else
+                {
+                    *empty_node = true;
+                }
             }
             else
             {
