@@ -597,6 +597,7 @@ static void iasend(DataList *list, int client_fd, const char *message, size_t le
 
     data->type = RAW_DATA;
     data->raw.ptr = malloc(length);
+    data->next = NULL;
 
     if (!data->raw.ptr)
     {
