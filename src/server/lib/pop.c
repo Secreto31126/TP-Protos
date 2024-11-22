@@ -654,8 +654,6 @@ static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int 
 
     int argc = parse_pop_cmd(cmds);
 
-    LOG("%s\n", cmds);
-
     char *buffer;
 
     if (!strcmp(cmds, "QUIT"))
@@ -721,8 +719,6 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
     cmds[length] = 0;
 
     int argc = parse_pop_cmd(cmds);
-
-    LOG("%s\n", cmds);
 
     char *buffer;
 
