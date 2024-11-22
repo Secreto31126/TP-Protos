@@ -144,7 +144,7 @@ static bool time_to_read(int client_fd, FILE *file);
 static bool finish_transmition(DataList *list, int client_fd, int fds_index);
 /**
  * @brief Recursively deallocate the memory of a Data linked list
- * 
+ *
  * @param data The first node of the linked list
  */
 static void free_data(Data *data);
@@ -254,7 +254,6 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
             LOG("New connection: socket fd %s:%d\n", inet_ntoa(address.sin_addr), new_socket);
 
-            free_data(pending[new_socket].messages.first);
             pending[new_socket].type = FD_SOCKET;
             pending[new_socket].messages.first = NULL;
             pending[new_socket].messages.last = NULL;
@@ -295,11 +294,24 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
             if (fds[i].revents & POLLERR)
             {
                 LOG("Error on fd %d\n", fd);
-                
+
                 if (pending[fd].type == FD_FILE)
                 {
                     pending[fd].read_callback(pending[fd].file);
                     fds[i--] = fds[--nfds];
+
+                    Data *splitters = pending[pending[fd].client_fd].splitters.first;
+                    while (splitters)
+                    {
+                        if (splitters->splitter.fd == fd)
+                        {
+                            splitters->splitter.fd = -1;
+                            break;
+                        }
+
+                        splitters = splitters->splitter.next;
+                    }
+
                     continue;
                 }
 
@@ -317,6 +329,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                     {
                         pending[fd].read_callback(pending[fd].file);
                         fds[i--] = fds[--nfds];
+                        continue;
                     }
                 }
 
@@ -363,15 +376,6 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                         {
                             continue;
                         }
-
-                        Data *splitter = pending[fd].splitters.first;
-                        while (splitter)
-                        {
-                            pending[fd].read_callback(pending[fd].file);
-                            // TODO: Remove file from poll
-                        }
-
-                        free_data(pending[fd].messages.first);
 
                         CLOSE_SOCKET(fds, nfds, i);
                         continue;
@@ -451,9 +455,38 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
         {
             Data *next = data->next;
 
-            free_data(data);
+            free(data);
 
             list->first = next;
+
+            Data *splitters = pending[client_fd].splitters.first;
+            Data *prev = NULL;
+
+            while (splitters)
+            {
+                if (splitters->splitter.fd == -1)
+                {
+                    if (prev)
+                    {
+                        prev->splitter.next = splitters->splitter.next;
+                    }
+                    else
+                    {
+                        pending[client_fd].splitters.first = splitters->splitter.next;
+                    }
+
+                    if (splitters == pending[client_fd].splitters.last)
+                    {
+                        pending[client_fd].splitters.last = prev;
+                    }
+
+                    free(splitters);
+                    break;
+                }
+
+                prev = splitters;
+                splitters = splitters->splitter.next;
+            }
 
             if (next)
             {
@@ -471,7 +504,7 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
                 *empty_node = true;
             }
         }
-        else if (empty_splitter)
+        else if (empty_splitter && !empty_node)
         {
             // Disable POLLOUT if no more messages in splitter but it's still open
             fds[fds_index].events &= ~POLLOUT;
@@ -538,6 +571,8 @@ bool fasend(int client_fd, FILE *file, read_event callback)
     nfds++;
 
     splitter->type = MESSAGE_SPLITTER;
+    splitter->next = NULL;
+
     splitter->splitter.fd = file_fd;
     splitter->splitter.messages.first = NULL;
     splitter->splitter.messages.last = NULL;
