@@ -59,10 +59,6 @@ typedef struct Mailfile
 typedef struct Connection
 {
     /**
-     * @brief The client file descriptor.
-     */
-    int fd;
-    /**
      * @brief The client buffer for incomplete commands
      */
     char buffer[CONNECTION_BUFFER_SIZE];
