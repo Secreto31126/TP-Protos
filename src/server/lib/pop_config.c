@@ -92,17 +92,13 @@ static void create_user_maildir(const char* base_maildir, const char* username){
     strncat(user_base_dir, "/", 2);
     strncat(user_base_dir, username, MAX_USERNAME_LENGTH + 1);
 
-    char *user_new_dir = calloc(1, maildir_len + MAX_USERNAME_LENGTH + 6);
-    char *user_cur_dir = calloc(1, maildir_len + MAX_USERNAME_LENGTH + 6);
-    char *user_tmp_dir = calloc(1, maildir_len + MAX_USERNAME_LENGTH + 6);
+    char *user_new_dir = calloc(1, maildir_len + MAX_USERNAME_LENGTH + 5);
+    char *user_cur_dir = calloc(1, maildir_len + MAX_USERNAME_LENGTH + 5);
+    char *user_tmp_dir = calloc(1, maildir_len + MAX_USERNAME_LENGTH + 5);
 
-    strncpy(user_new_dir, user_base_dir, maildir_len + MAX_USERNAME_LENGTH + 2);
-    strncpy(user_cur_dir, user_base_dir, maildir_len + MAX_USERNAME_LENGTH + 2);
-    strncpy(user_tmp_dir, user_base_dir, maildir_len + MAX_USERNAME_LENGTH + 2);
-
-    strncat(user_new_dir, "/new", 5);
-    strncat(user_new_dir, "/cur", 5);
-    strncat(user_new_dir, "/tmp", 5);
+    snprintf(user_new_dir, maildir_len + MAX_USERNAME_LENGTH + 5, "%s/new", user_base_dir);
+    snprintf(user_cur_dir, maildir_len + MAX_USERNAME_LENGTH + 5, "%s/cur", user_base_dir);
+    snprintf(user_tmp_dir, maildir_len + MAX_USERNAME_LENGTH + 5, "%s/tmp", user_base_dir);
 
     if (access(user_base_dir, F_OK) == -1)
     {
@@ -208,7 +204,7 @@ void set_maildir(const char *new_maildir)
         mkdir(new_maildir, S_IRWXU);
     }
 
-    for (size_t i = 0; i < MAX_USERS; i++)
+    for (size_t i = 0; i < _user_count; i++)
     {
         create_user_maildir(new_maildir, _users[i].username);
     }
