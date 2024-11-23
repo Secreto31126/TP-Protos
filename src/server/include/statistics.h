@@ -51,6 +51,7 @@ typedef struct log
 
 statistics_manager *create_statistics_manager();
 void destroy_statistics_manager(statistics_manager *sm);
+timestamp log_now();
 
 void log_bytes_transferred(statistics_manager *sm, char *username, uint64_t bytes, timestamp time);
 void log_connect(statistics_manager *sm, char *username, timestamp time);

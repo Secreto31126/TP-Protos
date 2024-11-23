@@ -99,6 +99,16 @@ void destroy_statistics_manager(statistics_manager *sm)
     free(sm);
 }
 
+timestamp log_now()
+{
+    timestamp t;
+    t.seconds = 0;
+    t.day = 0;
+    t.month = NOVEMBER;
+    t.year = 2024;
+    return t;
+}
+
 void add_log_to_hashset(hashset *set, log *l)
 {
     user_logs dummy;
