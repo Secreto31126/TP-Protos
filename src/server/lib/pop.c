@@ -570,22 +570,6 @@ static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_
     char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mail->uid)];
     snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, client->username, mail->uid);
 
-    FILE *file = fopen(path, "r");
-    if (!file)
-    {
-        char response[] = ERR_RESPONSE(" Failed to open message");
-        asend(client_fd, response, sizeof(response) - 1);
-    }
-
-    fseek(file, 0, SEEK_END);
-    size_t size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    fclose(file);
-
-    char buffer[] = OK_RESPONSE();
-    asend(client_fd, buffer, sizeof(buffer) - 1);
-
     char cmd[sizeof("cat ") + strlen(path) + sizeof(" | ") + strlen(mutator) + sizeof(" | ") + strlen(stuffer)];
     snprintf(cmd, sizeof(cmd) - 1, "cat %s | %s | %s", path, mutator, stuffer);
 
@@ -594,9 +578,13 @@ static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_
 
     if (!transformed)
     {
-        char response[] = ERR_RESPONSE(" Failed to transform message");
+        char response[] = ERR_RESPONSE(" Failed to read and transform message");
         asend(client_fd, response, sizeof(response) - 1);
+        return KEEP_CONNECTION_OPEN;
     }
+
+    char buffer[] = OK_RESPONSE();
+    asend(client_fd, buffer, sizeof(buffer) - 1);
 
     fasend(client_fd, transformed, pclose);
     asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
