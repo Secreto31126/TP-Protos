@@ -232,7 +232,7 @@ char set_user(const char *username, const char *password)
     if(i < _user_count){
         strncpy(_users[i].password, password, MAX_PASSWORD_LENGTH);
     } else if(_user_count < MAX_USERS){
-        _users[_user_count].locked = true;
+        _users[_user_count].locked = false;
         strncpy(_users[_user_count].password, password, MAX_PASSWORD_LENGTH);
         strncpy(_users[_user_count].username, username, MAX_USERNAME_LENGTH);
 
