@@ -374,8 +374,8 @@ static size_t handle_pass(Connection *client, const char *pass, char **response)
 
     client->authenticated = true;
 
-    *response = OK_RESPONSE(" Something about the weight of the emails here");
-    return sizeof(OK_RESPONSE(" Something about the weight of the emails here")) - 1;
+    *response = OK_RESPONSE(" Logged in");
+    return sizeof(OK_RESPONSE(" Logged in")) - 1;
 }
 
 /**
