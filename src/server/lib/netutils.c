@@ -6,6 +6,7 @@
 #include <magic.h>
 #include <poll.h>
 #include <semaphore.h>
+#include <statistics.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -14,12 +15,13 @@
     close(fds[i].fd);              \
     fds[i--] = fds[--nfds];
 
-#define NOTIFY_CLOSE(fds, pending, fd, on_close, status) \
-    if (!pending[fd].closed)                             \
-    {                                                    \
-        fds[i].events &= ~POLLIN;                        \
-        on_close(fd, status);                            \
-        pending[fd].closed = true;                       \
+#define NOTIFY_CLOSE(fds, pending, fd, on_close, status)  \
+    if (!pending[fd].closed)                              \
+    {                                                     \
+        fds[i].events &= ~POLLIN;                         \
+        on_close(fd, status);                             \
+        log_disconnect(stats, pending[fd].ip, log_now()); \
+        pending[fd].closed = true;                        \
     }
 
 typedef struct DataList
@@ -167,6 +169,8 @@ static int nfds = 0;
 // Array to hold pending messages or files
 static DataHeader pending[MAGIC_NUMBER];
 
+static statistics_manager *stats = NULL;
+
 int start_server(struct sockaddr_in *address)
 {
     int server_fd;
@@ -242,6 +246,8 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
     sem_post(&fds_mutex);
 
+    stats = create_statistics_manager();
+
     while (!*done)
     {
         int activity = poll(fds, nfds, -1);
@@ -258,6 +264,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
             }
 
             perror("poll error");
+            destroy_statistics_manager(stats);
             return EXIT_FAILURE;
         }
 
@@ -269,6 +276,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
             if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0)
             {
                 perror("accept");
+                destroy_statistics_manager(stats);
                 return EXIT_FAILURE;
             }
 
@@ -279,6 +287,8 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
             strncpy(pending[new_socket].ip, inet_ntoa(address.sin_addr), sizeof(pending[new_socket].ip));
             pending[new_socket].messages.first = NULL;
             pending[new_socket].messages.last = NULL;
+
+            log_connect(stats, pending[new_socket].ip, log_now());
 
             // Add new socket to fds array
             fds[nfds].fd = new_socket;
@@ -444,6 +454,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
         sem_post(&fds_mutex);
     }
 
+    destroy_statistics_manager(stats);
     return EXIT_SUCCESS;
 }
 
