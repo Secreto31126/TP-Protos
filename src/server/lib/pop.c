@@ -142,20 +142,20 @@ static int parse_pop_cmd(char *cmd)
     return argc;
 }
 
-/**
- * @brief Validate if a user exists in the mail directory.
- * @note The username MUST be a safe string. Use safe_username() to validate.
- *
- * @param username The input username (NULL terminated).
- * @return true The user exists.
- * @return false The user does not exist.
- */
-static bool user_exists(const char *username)
-{
-    char path[strlen(maildir) + MAX_USERNAME_LENGTH + 1];
-    snprintf(path, sizeof(path), "%s/%s", maildir, username);
-    return access(path, F_OK) != -1;
-}
+// /**
+//  * @brief Validate if a user exists in the mail directory.
+//  * @note The username MUST be a safe string. Use safe_username() to validate.
+//  *
+//  * @param username The input username (NULL terminated).
+//  * @return true The user exists.
+//  * @return false The user does not exist.
+//  */
+// static bool user_exists(const char *username)
+// {
+//     char path[strlen(maildir) + MAX_USERNAME_LENGTH + 1];
+//     snprintf(path, sizeof(path), "%s/%s", maildir, username);
+//     return access(path, F_OK) != -1;
+// }
 
 /**
  * @brief Validate if a user mail directory isn't locked.
@@ -312,14 +312,6 @@ static bool set_user_mails(const char *username, Mailfile mails[MAX_CLIENT_MAILS
  */
 static size_t handle_user(Connection *client, const char *username, char **response)
 {
-    if (!safe_username(username) || !user_exists(username))
-    {
-        client->username[0] = 0;
-
-        *response = ERR_RESPONSE(" Never heard that name before");
-        return sizeof(ERR_RESPONSE(" Never heard that name before"));
-    }
-
     strncpy(client->username, username, sizeof(client->username) - 1);
     client->username[sizeof(client->username) - 1] = 0;
 
