@@ -615,8 +615,9 @@ bool fasend(int client_fd, FILE *file, read_event callback)
 
 static bool time_to_read(int client_fd, FILE *file)
 {
+    int file_fd = fileno_unlocked(file);
     Data *splitter = pending[client_fd].splitters.first;
-    while (splitter && splitter->splitter.fd != fileno_unlocked(file))
+    while (splitter && splitter->splitter.fd != file_fd)
     {
         splitter = splitter->splitter.next;
     }
