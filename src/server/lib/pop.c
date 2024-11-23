@@ -210,7 +210,7 @@ static bool remove_lock(const char *username)
 
 /**
  * @brief Validate a user password.
- * @note Does NOT validate the username is secure.
+ * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The username (NULL terminated).
  * @param pass The input password (NULL terminated).
@@ -242,6 +242,7 @@ static bool pass_valid(const char *username, const char *pass)
 
 /**
  * @brief Set the user emails in the client connection.
+ * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The username (NULL terminated).
  * @param client The client connection.
