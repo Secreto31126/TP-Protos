@@ -281,7 +281,7 @@ static bool set_user_mails(const char *username, Connection *client)
 
         size_t i = client->mail_count;
 
-        strncpy(client->mails[i].uid, entry->d_name, sizeof(client->mails[i].uid) - 1);
+        memcpy(client->mails[i].uid, entry->d_name, sizeof(client->mails[i].uid));
         client->mails[i].uid[sizeof(client->mails[i].uid) - 1] = 0;
 
         client->mails[i].deleted = false;
@@ -406,6 +406,8 @@ static size_t handle_noop(char **response)
 
 /**
  * @brief Handles a STAT command.
+ * 
+ * @note The response must be freed by the caller.
  *
  * @param client The client connection.
  * @param response The response to send back to the client.
@@ -430,7 +432,7 @@ static size_t handle_stat(Connection *client, char **response)
     char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
     size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu %zu"), count, size);
 
-    *response = buffer;
+    *response = strdup(buffer);
     return POP_MIN(len);
 }
 
@@ -830,6 +832,7 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
     {
         size_t len = handle_stat(client, &buffer);
         asend(client_fd, buffer, len);
+        free(buffer);
         return KEEP_CONNECTION_OPEN;
     }
 
