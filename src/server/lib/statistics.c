@@ -101,12 +101,17 @@ void destroy_statistics_manager(statistics_manager *sm)
 
 timestamp log_now()
 {
-    timestamp t;
-    t.seconds = 0;
-    t.day = 0;
-    t.month = NOVEMBER;
-    t.year = 2024;
-    return t;
+    time_t rawtime;
+    struct tm *timeinfo;
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    return *timeinfo;
+}
+
+char *readable_time(timestamp t)
+{
+    return asctime(&t);
 }
 
 void add_log_to_hashset(hashset *set, log *l)

@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <time.h>
 #include "closed_hashing.h"
 
 typedef struct statistics_manager
@@ -25,13 +26,7 @@ typedef enum month_t
     DECEMBER
 } month_t;
 
-typedef struct timestamp
-{
-    uint8_t day;
-    month_t month;
-    uint16_t year;
-    uint32_t seconds;
-} timestamp;
+typedef struct tm timestamp;
 
 typedef enum log_t
 {
