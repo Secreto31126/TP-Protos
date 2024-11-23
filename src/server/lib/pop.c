@@ -251,10 +251,42 @@ static bool pass_valid(const char *username, const char *pass)
  */
 static bool set_user_mails(const char *username, Connection *client)
 {
-    char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail")];
-    snprintf(path, sizeof(path), "%s/%s/mail", maildir, username);
+    char new_path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/new")];
+    snprintf(new_path, sizeof(new_path), "%s/%s/new", maildir, username);
 
-    DIR *dir = opendir(path);
+    char cur_path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/cur")];
+    snprintf(cur_path, sizeof(cur_path), "%s/%s/cur", maildir, username);
+
+    DIR *new_dir = opendir(new_path);
+    if (!new_dir)
+    {
+        return false;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(new_dir)))
+    {
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+        {
+            continue;
+        }
+
+        char new_filepath[strlen(new_path) + sizeof("/") + sizeof(entry->d_name)];
+        snprintf(new_filepath, sizeof(new_filepath), "%s/%s", new_path, entry->d_name);
+
+        char cur_filepath[strlen(cur_path) + sizeof("/") + sizeof(entry->d_name) + sizeof(":2,S")];
+        snprintf(cur_filepath, sizeof(cur_filepath), "%s/%s:2,S", cur_path, entry->d_name);
+
+        if (rename(new_filepath, cur_filepath))
+        {
+            closedir(new_dir);
+            return false;
+        }
+    }
+
+    closedir(new_dir);
+
+    DIR *dir = opendir(cur_path);
     if (!dir)
     {
         return false;
@@ -264,7 +296,6 @@ static bool set_user_mails(const char *username, Connection *client)
     client->mail_count = 0;
     client->mails = malloc(allocated * sizeof(Mailfile));
 
-    struct dirent *entry;
     while ((entry = readdir(dir)))
     {
         if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
@@ -279,8 +310,8 @@ static bool set_user_mails(const char *username, Connection *client)
 
         client->mails[i].deleted = false;
 
-        char filepath[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(client->mails[i].uid)];
-        snprintf(filepath, sizeof(filepath), "%s/%s/mail/%s", maildir, username, client->mails[i].uid);
+        char filepath[strlen(cur_path) + sizeof("/") + sizeof(client->mails[i].uid)];
+        snprintf(filepath, sizeof(filepath), "%s/%s", cur_path, client->mails[i].uid);
 
         struct stat buf;
         if (stat(filepath, &buf) < 0)
@@ -623,8 +654,8 @@ static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_
         return KEEP_CONNECTION_OPEN;
     }
 
-    char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mail->uid)];
-    snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, client->username, mail->uid);
+    char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/cur/") + sizeof(mail->uid)];
+    snprintf(path, sizeof(path), "%s/%s/cur/%s", maildir, client->username, mail->uid);
 
     if (access(path, F_OK))
     {
@@ -1015,8 +1046,8 @@ void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
                 continue;
             }
 
-            char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mail.uid)];
-            snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, client->username, mail.uid);
+            char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/cur/") + sizeof(mail.uid)];
+            snprintf(path, sizeof(path), "%s/%s/cur/%s", maildir, client->username, mail.uid);
 
             if (remove(path) < 0)
             {
