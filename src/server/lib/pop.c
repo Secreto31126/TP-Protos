@@ -74,7 +74,7 @@ typedef struct Connection
     /**
      * @brief The client mails (loaded after the AUTHORIZATION state)
      */
-    Mailfile mails[MAX_CLIENT_MAILS];
+    Mailfile *mails;
 } Connection;
 
 static Connection connections[MAGIC_NUMBER] = {0};
@@ -354,6 +354,8 @@ static size_t handle_pass(Connection *client, const char *pass, char **response)
         *response = ERR_RESPONSE(" Failed to lock mailbox");
         return sizeof(ERR_RESPONSE(" Failed to lock mailbox")) - 1;
     }
+
+    client->mails = malloc(MAX_CLIENT_MAILS * sizeof(Mailfile));
 
     if (!set_user_mails(client->username, client->mails))
     {
@@ -1034,6 +1036,8 @@ void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
     memset(client->username, 0, sizeof(client->username));
     client->authenticated = false;
     client->update = false;
+    free(client->mails);
+    client->mails = NULL;
 
     asend(client_fd, OK_RESPONSE(" Bye!"), sizeof(OK_RESPONSE(" Bye!")) - 1);
 }
