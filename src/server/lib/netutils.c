@@ -394,7 +394,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                         continue;
                     }
 
-                    LOG("Received from client %d (%d bytes): %s\n", fd, len, buffer);
+                    LOG("Received from client %d (%d bytes): %.512s\n", fd, len, buffer);
 
                     ON_MESSAGE_RESULT result = on_message(fd, buffer, len);
 
