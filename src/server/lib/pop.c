@@ -932,9 +932,6 @@ static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd
         return handle_pop_authorization_state(client, client_fd, cmd, length);
     }
 
-    // Consider adding an UPDATE flag on the client connection to prevent
-    // weird edge case scenarios where a user sends a command after a QUIT
-    // command and somehow it triggers an impossible race condition
     return handle_pop_transaction_state(client, client_fd, cmd, length);
 }
 
