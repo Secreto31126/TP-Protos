@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define BLOCK 4
+#define BLOCK 512
 
 /**
  * @brief Parse a file and make each line POP3 compliant
