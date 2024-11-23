@@ -15,11 +15,6 @@
 
 #define CONNECTION_BUFFER_SIZE 1024
 
-#define MAX_POP3_ARG_LENGTH 40
-#define MAX_USERNAME_LENGTH MAX_POP3_ARG_LENGTH
-#define MAX_PASSWORD_LENGTH MAX_POP3_ARG_LENGTH
-#define MAX_POP3_RESPONSE_LENGTH 512
-
 #define POP3_OK "+OK"
 #define POP3_ERR "-ERR"
 #define POP3_ENTER "\r\n"
@@ -145,34 +140,6 @@ static int parse_pop_cmd(char *cmd)
     }
 
     return argc;
-}
-
-/**
- * @brief Assert safe username string.
- * @note A safe username does not start with a dot, does not contain slashes,
- * is not empty and is shorter than MAX_USERNAME_LENGTH characters.
- *
- * @param username The input username (NULL terminated).
- * @return true The username is safe.
- * @return false The username is not safe.
- */
-static bool safe_username(const char *username)
-{
-    if (!*username || *username == '.')
-    {
-        return false;
-    }
-
-    const char *n = username;
-    while (*n)
-    {
-        if (*n == '/' || ++n - username /* length */ > MAX_USERNAME_LENGTH)
-        {
-            return false;
-        }
-    }
-
-    return true;
 }
 
 /**

@@ -1,10 +1,8 @@
 #include <argument_parser.h>
+#include <pop_config.h>
 
 static void usage();
 static void help();
-static void set_address(const char *input, struct sockaddr_in *address);
-static void set_port(const char *input, struct sockaddr_in *address);
-static void set_maildir(const char **dir_path, const char *arg);
 
 static const char *_progname;
 
@@ -18,7 +16,7 @@ void parse_arguments(int argc, const char *argv[], const char *progname, struct 
             switch (argv[i][1])
             {
             case 'h':
-                help("server");
+                help();
                 exit(0);
                 break;
             case 'v':
@@ -26,19 +24,25 @@ void parse_arguments(int argc, const char *argv[], const char *progname, struct 
                 exit(0);
                 break;
             case 'd':
-                set_maildir(dir_path, argv[++i]);
+                set_maildir(argv[++i]);
                 break;
             case 'l':
-                set_address(argv[++i], address_pop);
+                set_pop_address(argv[++i]);
                 break;
             case 'L':
-                set_address(argv[++i], address_conf);
+                set_management_address(argv[++i]);
                 break;
             case 'p':
-                set_port(argv[++i], address_pop);
+                set_pop_port(argv[++i]);
                 break;
             case 'P':
-                set_port(argv[++i], address_conf);
+                set_management_port(argv[++i]);
+                break;
+            case 't':
+                set_transformer(argv[++i]);
+                break;
+            case 'u':
+                //TODO Loop para agregar todos los usuarios
                 break;
             default:
                 usage();
@@ -46,40 +50,6 @@ void parse_arguments(int argc, const char *argv[], const char *progname, struct 
             }
         }
     }
-}
-
-static void set_address(const char *input, struct sockaddr_in *address)
-{
-    int aux = inet_pton(AF_INET, input, &(address->sin_addr.s_addr));
-    if (aux < 0)
-    {
-        aux = inet_pton(AF_INET6, input, &(address->sin_addr.s_addr));
-        if (aux < 0)
-        {
-            fprintf(stderr, "Addr argument should be a valid IP address (In case of IPv4: 'ddd.ddd.ddd.ddd', where ddd is a"
-                            " decimal number of up to three digits in the range 0 to 255."
-                            " In case of IPv6: see RFC 2373 for details on the repeesentation of IPv6 addresses)."
-                            "\nRun server with argument '-h' to see usage.\n");
-            exit(1);
-        }
-        address->sin_family = AF_INET6;
-    }
-}
-
-static void set_port(const char *input, struct sockaddr_in *address)
-{
-    __u_long port = strtol(input, NULL, 10);
-    if (port <= 0 || port > USHRT_MAX)
-    {
-        fprintf(stderr, "Port argument should be a number between 1 and 65535. Run server with argument '-h' to see usage.\n");
-        exit(1);
-    }
-    address->sin_port = htons((__u_short)port);
-}
-
-static void set_maildir(const char **dir_path, const char *arg)
-{
-    *dir_path = arg;
 }
 
 static void printUsage(FILE *fd)
