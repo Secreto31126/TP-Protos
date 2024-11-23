@@ -623,6 +623,27 @@ static size_t handle_dele(Connection *client, size_t msg, char **response)
 }
 
 /**
+ * @brief Handles a RSET command.
+ * 
+ * @param client The client connection.
+ * @param response The response to send back to the client.
+ * @return size_t The length of the response.
+ */
+static size_t handle_rset(Connection *client, char **response)
+{
+    Mailfile *mails = client->mails;
+
+    while (mails->uid[0])
+    {
+        mails->deleted = false;
+        mails++;
+    }
+
+    *response = OK_RESPONSE(" Reversed deletes");
+    return sizeof(OK_RESPONSE(" Reversed deletes")) - 1;
+}
+
+/**
  * @brief Handles a message in the authorization state of a POP3 connection.
  *
  * @param client The client connection.
@@ -723,6 +744,13 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
     if (!strcmp(cmds, "STAT"))
     {
         size_t len = handle_stat(client, &buffer);
+        asend(client_fd, buffer, len);
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    if (!strcmp(cmds, "RSET"))
+    {
+        size_t len = handle_rset(client, &buffer);
         asend(client_fd, buffer, len);
         return KEEP_CONNECTION_OPEN;
     }
