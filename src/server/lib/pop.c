@@ -610,12 +610,14 @@ static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_
     {
         char response[] = ERR_RESPONSE(" No such message");
         asend(client_fd, response, sizeof(response) - 1);
+        return KEEP_CONNECTION_OPEN;
     }
 
     if (mail->deleted)
     {
         char response[] = ERR_RESPONSE(" Message already deleted");
         asend(client_fd, response, sizeof(response) - 1);
+        return KEEP_CONNECTION_OPEN;
     }
 
     char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mail->uid)];
