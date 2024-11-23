@@ -6,6 +6,7 @@
 #include <magic.h>
 #include <math.h>
 #include <pthread.h>
+#include <pop_config.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -106,6 +107,11 @@ void pop_init(const char *dir, const char *transformer, const char *bytestuffer)
     {
         mkdir(maildir, S_IRWXU);
     }
+}
+
+void pop_stop()
+{
+    shutdown_pop_configs();
 }
 
 /**

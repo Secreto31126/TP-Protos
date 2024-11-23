@@ -18,6 +18,10 @@
  * @param bytestuffer The path to the bytestuffer program, defaults to "./dist/bytestuff".
  */
 void pop_init(const char *dir, const char *transformer, const char *bytestuffer);
+/**
+ * @brief Finalize the POP3 server.
+ */
+void pop_stop();
 
 /**
  * @brief Handle a POP3 connection. Populates the client connection with the initial state.
