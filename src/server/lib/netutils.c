@@ -305,7 +305,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                     {
                         if (splitters->splitter.fd == fd)
                         {
-                            splitters->splitter.fd = -1;
+                            splitters->splitter.fd = -splitters->splitter.fd;
                             break;
                         }
 
@@ -454,22 +454,18 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
     if (data->type == MESSAGE_SPLITTER)
     {
         bool empty_splitter = false;
-        ON_MESSAGE_RESULT result = time_to_send(&data->splitter.messages, client_fd, -1, &empty_splitter);
+        ON_MESSAGE_RESULT result = time_to_send(&data->splitter.messages, client_fd, fds_index, &empty_splitter);
 
         if (empty_splitter && data->splitter.fd < 0)
         {
-            Data *next = data->next;
-
-            free(data);
-
-            list->first = next;
+            list->first = data->next;
 
             Data *splitters = pending[client_fd].splitters.first;
             Data *prev = NULL;
 
             while (splitters)
             {
-                if (splitters->splitter.fd == -1)
+                if (splitters->splitter.fd == data->splitter.fd)
                 {
                     if (prev)
                     {
@@ -485,7 +481,6 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
                         pending[client_fd].splitters.last = prev;
                     }
 
-                    free(splitters);
                     break;
                 }
 
@@ -493,7 +488,9 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
                 splitters = splitters->splitter.next;
             }
 
-            if (next)
+            free(data);
+
+            if (list->first)
             {
                 return time_to_send(list, client_fd, fds_index, empty_node);
             }
@@ -548,7 +545,15 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
     if (!next)
     {
         list->last = NULL;
-        fds[fds_index].events &= ~POLLOUT;
+
+        if (!empty_node)
+        {
+            fds[fds_index].events &= ~POLLOUT;
+        }
+        else
+        {
+            *empty_node = true;
+        }
     }
 
     return KEEP_CONNECTION_OPEN;
@@ -637,7 +642,7 @@ static bool time_to_read(int client_fd, FILE *file)
 
     if (feof_unlocked(file) || ferror_unlocked(file))
     {
-        splitter->splitter.fd = -1;
+        splitter->splitter.fd = -splitter->splitter.fd;
         return false;
     }
 
