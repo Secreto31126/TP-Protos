@@ -14,6 +14,14 @@
     close(fds[i].fd);              \
     fds[i--] = fds[--nfds];
 
+#define NOTIFY_CLOSE(fds, pending, fd, on_close, status) \
+    if (!pending[fd].closed)                             \
+    {                                                    \
+        fds[i].events &= ~POLLIN;                        \
+        on_close(fd, status);                            \
+        pending[fd].closed = true;                       \
+    }
+
 typedef struct DataList
 {
     struct Data *first;
@@ -82,6 +90,7 @@ typedef struct DataHeader
     {
         struct
         {
+            bool closed;
             DataList messages;
             DataList splitters;
         };
@@ -255,6 +264,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
             LOG("New connection: socket fd %s:%d\n", inet_ntoa(address.sin_addr), new_socket);
 
             pending[new_socket].type = FD_SOCKET;
+            pending[new_socket].closed = false;
             pending[new_socket].messages.first = NULL;
             pending[new_socket].messages.last = NULL;
 
@@ -315,7 +325,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                     continue;
                 }
 
-                on_close(fd, CONNECTION_ERROR);
+                NOTIFY_CLOSE(fds, pending, fd, on_close, CONNECTION_ERROR);
                 CLOSE_SOCKET(fds, nfds, i);
             }
 
@@ -357,7 +367,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
                         free_data(pending[fd].messages.first);
 
-                        on_close(fd, CONNECTION_ERROR);
+                        NOTIFY_CLOSE(fds, pending, fd, on_close, CONNECTION_ERROR);
                         CLOSE_SOCKET(fds, nfds, i);
                         continue;
                     }
@@ -370,7 +380,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                     {
                         LOG("Closing connection: socket fd %d\n", fd);
 
-                        on_close(fd, result);
+                        NOTIFY_CLOSE(fds, pending, fd, on_close, result);
 
                         if (result == CONNECTION_ERROR)
                         {
@@ -379,6 +389,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                         }
                         else if (!finish_transmition(&pending[fd].messages, fd, i))
                         {
+                            LOG("Waiting for transmition to finish: socket fd %d\n", fd);
                             continue;
                         }
 
@@ -404,13 +415,15 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                 {
                     if (result == CONNECTION_ERROR)
                     {
-                        // TODO : Real stats
+                        // TODO: Real stats
                         LOG("Error handling message\n");
                     }
+                    else
+                    {
+                        LOG("Finished transmition: socket fd %d\n", fd);
+                    }
 
-                    LOG("Closing connection: socket fd %d\n", fd);
-
-                    on_close(fd, result);
+                    NOTIFY_CLOSE(fds, pending, fd, on_close, result);
                     CLOSE_SOCKET(fds, nfds, i);
                 }
             }
