@@ -36,7 +36,7 @@ typedef struct Mailfile
     /**
      * @brief The mail unique ID and filename
      */
-    char uid[71];
+    char uid[256];
     /**
      * @brief If the mail is marked for deletion by the client
      * @note The mails are not deleted until the client enters the UPDATE state
@@ -75,9 +75,13 @@ typedef struct Connection
      * @brief The client mails (loaded after the AUTHORIZATION state)
      */
     Mailfile *mails;
+    /**
+     * @brief The number of mails in the client mails array
+     */
+    size_t mail_count;
 } Connection;
 
-static Connection connections[MAGIC_NUMBER] = {0};
+static Connection *connections[MAGIC_NUMBER] = {NULL};
 
 /**
  * @brief The directory where the users mailboxes are stored.
@@ -101,13 +105,6 @@ void pop_init(const char *dir, const char *transformer, const char *bytestuffer)
     if (access(maildir, F_OK) == -1)
     {
         mkdir(maildir, S_IRWXU);
-    }
-
-    for (size_t i = 0; i < MAX_CLIENTS; i++)
-    {
-        connections[i].username[0] = 0;
-        connections[i].authenticated = false;
-        connections[i].update = false;
     }
 }
 
@@ -247,11 +244,11 @@ static bool pass_valid(const char *username, const char *pass)
  * @brief Set the user emails in the client connection.
  *
  * @param username The username (NULL terminated).
- * @param mails The client mails array.
+ * @param client The client connection.
  * @return true The mails were successfully loaded.
  * @return false The mails could not be loaded.
  */
-static bool set_user_mails(const char *username, Mailfile mails[MAX_CLIENT_MAILS])
+static bool set_user_mails(const char *username, Connection *client)
 {
     char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail")];
     snprintf(path, sizeof(path), "%s/%s/mail", maildir, username);
@@ -262,7 +259,10 @@ static bool set_user_mails(const char *username, Mailfile mails[MAX_CLIENT_MAILS
         return false;
     }
 
-    size_t i = 0;
+    size_t allocated = 4;
+    client->mail_count = 0;
+    client->mails = malloc(allocated * sizeof(Mailfile));
+
     struct dirent *entry;
     while ((entry = readdir(dir)))
     {
@@ -271,16 +271,15 @@ static bool set_user_mails(const char *username, Mailfile mails[MAX_CLIENT_MAILS
             continue;
         }
 
-// This is the expected behaviour, if the filename is too long, truncate it
-#pragma GCC diagnostic ignored "-Wstringop-truncation"
-        strncpy(mails[i].uid, entry->d_name, sizeof(mails[i].uid) - 1);
-        mails[i].uid[sizeof(mails[i].uid) - 1] = 0;
-#pragma GCC diagnostic warning "-Wstringop-truncation"
+        size_t i = client->mail_count;
 
-        mails[i].deleted = false;
+        strncpy(client->mails[i].uid, entry->d_name, sizeof(client->mails[i].uid) - 1);
+        client->mails[i].uid[sizeof(client->mails[i].uid) - 1] = 0;
 
-        char filepath[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mails[i].uid)];
-        snprintf(filepath, sizeof(filepath), "%s/%s/mail/%s", maildir, username, mails[i].uid);
+        client->mails[i].deleted = false;
+
+        char filepath[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(client->mails[i].uid)];
+        snprintf(filepath, sizeof(filepath), "%s/%s/mail/%s", maildir, username, client->mails[i].uid);
 
         struct stat buf;
         if (stat(filepath, &buf) < 0)
@@ -289,12 +288,19 @@ static bool set_user_mails(const char *username, Mailfile mails[MAX_CLIENT_MAILS
             return false;
         }
 
-        mails[i].size = buf.st_size;
+        client->mails[i].size = buf.st_size;
 
-        i++;
+        if (++client->mail_count >= MAX_CLIENT_MAILS)
+        {
+            break;
+        }
+
+        if (client->mail_count >= allocated)
+        {
+            allocated *= 2;
+            client->mails = realloc(client->mails, allocated * sizeof(Mailfile));
+        }
     }
-
-    mails[i].uid[0] = 0;
 
     closedir(dir);
 
@@ -355,9 +361,7 @@ static size_t handle_pass(Connection *client, const char *pass, char **response)
         return sizeof(ERR_RESPONSE(" Failed to lock mailbox")) - 1;
     }
 
-    client->mails = malloc(MAX_CLIENT_MAILS * sizeof(Mailfile));
-
-    if (!set_user_mails(client->username, client->mails))
+    if (!set_user_mails(client->username, client))
     {
         remove_lock(client->username);
         client->username[0] = 0;
@@ -396,16 +400,15 @@ static size_t handle_stat(Connection *client, char **response)
     size_t size = 0;
     size_t count = 0;
 
-    Mailfile *mails = client->mails;
-    while (mails->uid[0])
+    for (size_t i = 0; i < client->mail_count; i++)
     {
-        if (!mails->deleted)
+        Mailfile mail = client->mails[i];
+
+        if (!mail.deleted)
         {
-            size += mails->size;
+            size += mail.size;
             count++;
         }
-
-        mails++;
     }
 
     char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
@@ -462,16 +465,15 @@ static ON_MESSAGE_RESULT handle_list_all(Connection *client, int client_fd)
     size_t size = 0;
     size_t count = 0;
 
-    Mailfile *mails = client->mails;
-    while (mails->uid[0])
+    for (size_t i = 0; i < client->mail_count; i++)
     {
-        if (!mails->deleted)
+        Mailfile mail = client->mails[i];
+
+        if (!mail.deleted)
         {
-            size += mails->size;
+            size += mail.size;
             count++;
         }
-
-        mails++;
     }
 
     char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
@@ -480,21 +482,19 @@ static ON_MESSAGE_RESULT handle_list_all(Connection *client, int client_fd)
     asend(client_fd, buffer, POP_MIN(len));
 
     size_t i = 1;
-    mails = client->mails;
-    while (mails->uid[0])
+    for (size_t j = 0; j < client->mail_count; j++)
     {
-        if (mails->deleted)
+        Mailfile mail = client->mails[j];
+
+        if (mail.deleted)
         {
-            mails++;
             continue;
         }
 
         char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
-        size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, "%zu %zu" POP3_ENTER, i++, mails->size);
+        size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, "%zu %zu" POP3_ENTER, i++, mail.size);
 
         asend(client_fd, buffer, POP_MIN(len));
-
-        mails++;
     }
 
     asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
@@ -699,12 +699,9 @@ static size_t handle_dele(Connection *client, size_t msg, char **response)
  */
 static size_t handle_rset(Connection *client, char **response)
 {
-    Mailfile *mails = client->mails;
-
-    while (mails->uid[0])
+    for (size_t i = 0; i < client->mail_count; i++)
     {
-        mails->deleted = false;
-        mails++;
+        client->mails[i].deleted = false;
     }
 
     *response = OK_RESPONSE(" Reversed deletes");
@@ -937,10 +934,12 @@ static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd
 
 ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address)
 {
-    connections[client_fd].buffer[0] = 0;
-    connections[client_fd].username[0] = 0;
-    connections[client_fd].authenticated = false;
-    connections[client_fd].update = false;
+    connections[client_fd] = calloc(1, sizeof(Connection));
+
+    if (!connections[client_fd])
+    {
+        return CONNECTION_ERROR;
+    }
 
     char response[] = OK_RESPONSE(" POP3 server ready");
     asend(client_fd, response, sizeof(response) - 1);
@@ -949,7 +948,7 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address)
 
 ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length)
 {
-    Connection *client = connections + client_fd;
+    Connection *client = connections[client_fd];
 
     char buffer[length];
     strncpy(buffer, body, length);
@@ -997,7 +996,7 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
 
 void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
 {
-    Connection *client = connections + client_fd;
+    Connection *client = connections[client_fd];
 
     if (result == CONNECTION_ERROR)
     {
@@ -1006,24 +1005,22 @@ void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
 
     if (client->update)
     {
-        Mailfile *mails = client->mails;
-        while (mails->uid[0])
+        for (size_t i = 0; i < client->mail_count; i++)
         {
-            if (!mails->deleted)
+            Mailfile mail = client->mails[i];
+
+            if (!mail.deleted)
             {
-                mails++;
                 continue;
             }
 
-            char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mails->uid)];
-            snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, client->username, mails->uid);
+            char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mail.uid)];
+            snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, client->username, mail.uid);
 
             if (remove(path) < 0)
             {
-                LOG("Failed to remove mail %s\n", mails->uid);
+                LOG("Failed to remove mail %s\n", mail.uid);
             }
-
-            mails++;
         }
     }
 
@@ -1031,10 +1028,16 @@ void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
 
     // Privacy friendly
     memset(client->username, 0, sizeof(client->username));
-    client->authenticated = false;
-    client->update = false;
-    free(client->mails);
-    client->mails = NULL;
 
-    asend(client_fd, OK_RESPONSE(" Bye!"), sizeof(OK_RESPONSE(" Bye!")) - 1);
+    if (client->mails)
+    {
+        free(client->mails);
+    }
+
+    free(client);
+
+    if (result != CONNECTION_ERROR)
+    {
+        asend(client_fd, OK_RESPONSE(" Bye!"), sizeof(OK_RESPONSE(" Bye!")) - 1);
+    }
 }
