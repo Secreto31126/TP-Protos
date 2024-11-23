@@ -6,6 +6,9 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#define POP_DEFAULT_PORT 28160          // htons(110)
+#define MANAGER_DEFAULT_PORT 57616      // htons(4321) because why not
+
 static char *const _default_mail_dir = "./dist/mail";
 static char *_mail_dir = _default_mail_dir;
 
@@ -15,8 +18,17 @@ static char *_transformer = _default_transformer;
 static unsigned int _user_count = 0;
 static User _users[MAX_USERS] = {0};
 
-static struct sockaddr_in _pop_addr;
-static struct sockaddr_in _management_addr;
+static struct sockaddr_in _pop_addr = {
+    .sin_family = AF_INET,
+    .sin_port = POP_DEFAULT_PORT,
+    .sin_addr.s_addr = INADDR_ANY
+    };
+
+static struct sockaddr_in _management_addr = {
+    .sin_family = AF_INET,
+    .sin_port = MANAGER_DEFAULT_PORT,
+    .sin_addr.s_addr = INADDR_ANY
+    };
 
 static char set_address(const char *input, struct sockaddr_in *address)
 {
