@@ -1046,7 +1046,10 @@ void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
         }
     }
 
-    remove_lock(client->username);
+    if (!remove_lock(client->username))
+    {
+        LOG("Failed to remove lock for %s\n", client->username);
+    }
 
     // Privacy friendly
     memset(client->username, 0, sizeof(client->username));
