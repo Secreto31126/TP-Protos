@@ -158,7 +158,7 @@ void *hashset_next(hashset_iterator *iterator)
     while (iterator->index < iterator->set->elements_dim && (iterator->set->elements[iterator->index] == DUMMY || iterator->set->elements[iterator->index] == NULL))
         iterator->index++;
     if (iterator->index < iterator->set->elements_dim)
-        return iterator->set->elements[iterator->index];
+        return iterator->set->elements[iterator->index++];
     return NULL;
 }
 

@@ -1,4 +1,4 @@
-all: before server
+all: before server bytestuff
 
 before:
 	@echo
@@ -8,8 +8,13 @@ before:
 
 server:
 	make all -C src/server
+	rm -f dist/mail/*/lock
+
+bytestuff:
+	make all -C src/bytestuff
 
 clean:
 	make clean -C src/server
+	make clean -C src/bytestuff
 
 .PHONY: all server clean

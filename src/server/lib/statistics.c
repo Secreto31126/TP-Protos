@@ -86,7 +86,7 @@ statistics_manager *create_statistics_manager()
 log *new_log(char *username, timestamp time, void *data, log_t type)
 {
     log *l = malloc(sizeof(log));
-    l->data = data;
+    l->username = username;
     l->time = time;
     l->data = data;
     l->type = type;
@@ -99,6 +99,21 @@ void destroy_statistics_manager(statistics_manager *sm)
     free(sm);
 }
 
+timestamp log_now()
+{
+    time_t rawtime;
+    struct tm *timeinfo;
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    return *timeinfo;
+}
+
+char *readable_time(timestamp t)
+{
+    return asctime(&t);
+}
+
 void add_log_to_hashset(hashset *set, log *l)
 {
     user_logs dummy;
@@ -107,7 +122,7 @@ void add_log_to_hashset(hashset *set, log *l)
     if (u_log == NULL)
     {
         u_log = new_user_logs(l->username);
-        hashset_add(set, l);
+        hashset_add(set, u_log);
     }
     add_log(u_log, l);
 }

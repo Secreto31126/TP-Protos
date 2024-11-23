@@ -1,9 +1,10 @@
 #ifndef NETUTILS_H_CTCyWGhkVt1pazNytqIRptmAi5U
 #define NETUTILS_H_CTCyWGhkVt1pazNytqIRptmAi5U
 
-#include <unistd.h>
-#include <stdbool.h>
 #include <arpa/inet.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #define MAX_CLIENTS 5
 #define MAX_PENDING_CLIENTS 10
@@ -43,17 +44,25 @@ typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body
  * @note The fd is still open to prevent race conditions, but should not be used to read or write.
  *
  * @param client_fd The client file descriptor.
+ * @param result The result of the last message handled.
  */
-typedef void (*close_event)(const int client_fd);
+typedef void (*close_event)(const int client_fd, ON_MESSAGE_RESULT result);
+
+/**
+ * @brief Handle a finished read and send event
+ *
+ * @param file The file that has been read.
+ * @return int Unused.
+ */
+typedef int (*read_event)(FILE *file);
 
 /**
  * @brief Initialize a TCP server in non-blocking mode.
  *
- * @param address The server address binded.
- * @param port The server port.
+ * @param address The server address to bind.
  * @return int The server file descriptor, or -1 if an error occurred.
  */
-int start_server(struct sockaddr_in *address, int port);
+int start_server(struct sockaddr_in *address);
 /**
  * @brief The main server loop to handle incoming connections and messages.
  *
@@ -69,5 +78,26 @@ int start_server(struct sockaddr_in *address, int port);
  * @return int The exit status.
  */
 int server_loop(int server_fd, const bool *done, connection_event on_connection, message_event on_message, close_event on_close);
+
+/**
+ * @brief Asynchronously send a package to a client.
+ * @note Can only be called during an event.
+ *
+ * @param client_fd The client file descriptor.
+ * @param message The message to send.
+ * @param length The message length.
+ */
+void asend(int client_fd, const char *message, size_t length);
+/**
+ * @brief Asynchronously read a file and send it to a client.
+ * @note Can only be called during an event.
+ *
+ * @param client_fd The client file descriptor.
+ * @param filename The file to read.
+ * @param callback The callback after sending the file.
+ * @return true If the file was added to the queue.
+ * @return false If the file couldn't be opened (maybe it doesn't exists).
+ */
+bool fasend(int client_fd, FILE *filename, read_event callback);
 
 #endif

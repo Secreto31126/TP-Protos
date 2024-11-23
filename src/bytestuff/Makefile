@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -pthread -Wall -fdiagnostics-color=always
+CFLAGS = -Wall -fdiagnostics-color=always
 
 ifneq ($(DEBUG), 0)
 CFLAGS += -g -DDEVELOPMENT
@@ -7,23 +7,22 @@ else
 CFLAGS += -O2
 endif
 
-SRC = $(wildcard lib/*.c) main.c
-HDR = ./include
+SRC = main.c
 
 OBJ = $(SRC:.c=.o)
 
-EXEC = ../../dist/server
+EXEC = ../../dist/bytestuff
 
 all: log $(EXEC)
 
 log:
 	@echo
-	@echo "\033[0;36mMAKEFILE SERVER\033[0m"
+	@echo "\033[0;36mMAKEFILE BYTE-STUFF\033[0m"
 	@echo "\tSOURCES=$(SRC)"
 	@echo
 
 $(EXEC):
-	$(CC) $(CFLAGS) -I$(HDR) -o $@ $(SRC) -lm
+	$(CC) $(CFLAGS) -o $@ $(SRC) -lm
 
 clean:
 	rm -f $(OBJ) $(EXEC)

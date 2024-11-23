@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <time.h>
 #include "closed_hashing.h"
 
 typedef struct statistics_manager
@@ -25,13 +26,7 @@ typedef enum month_t
     DECEMBER
 } month_t;
 
-typedef struct timestamp
-{
-    uint8_t day;
-    month_t month;
-    uint16_t year;
-    uint32_t seconds;
-} timestamp;
+typedef struct tm timestamp;
 
 typedef enum log_t
 {
@@ -51,6 +46,7 @@ typedef struct log
 
 statistics_manager *create_statistics_manager();
 void destroy_statistics_manager(statistics_manager *sm);
+timestamp log_now();
 
 void log_bytes_transferred(statistics_manager *sm, char *username, uint64_t bytes, timestamp time);
 void log_connect(statistics_manager *sm, char *username, timestamp time);
