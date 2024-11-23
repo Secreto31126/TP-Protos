@@ -204,27 +204,14 @@ static bool remove_lock(const char *username)
  */
 static bool pass_valid(const char *username, const char *pass)
 {
-    char *maildir = get_maildir();
+    User *user = get_user(username);
 
-    char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/data/pass")];
-    snprintf(path, sizeof(path), "%s/%s/data/pass", maildir, username);
-
-    FILE *file = fopen(path, "r");
-    if (!file)
+    if (!user)
     {
         return false;
     }
 
-    char buffer[MAX_PASSWORD_LENGTH + 1];
-    char *success = fgets(buffer, sizeof(buffer), file);
-    fclose(file);
-
-    if (!success)
-    {
-        return false;
-    }
-
-    return !strcmp(buffer, pass);
+    return !strcmp(user->password, pass);
 }
 
 /**
