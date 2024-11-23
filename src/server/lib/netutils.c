@@ -246,6 +246,16 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
         int activity = poll(fds, nfds, -1);
         if (activity < 0)
         {
+            if (errno == EINTR || errno == EAGAIN)
+            {
+                continue;
+            }
+
+            if (errno == EBADF)
+            {
+                LOG("Bad descriptor detected\n");
+            }
+
             perror("poll error");
             return EXIT_FAILURE;
         }
