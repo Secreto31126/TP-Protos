@@ -501,6 +501,98 @@ static ON_MESSAGE_RESULT handle_list_all(Connection *client, int client_fd)
 }
 
 /**
+ * @brief Handles the RETR plumbing
+ *
+ * @note I recommend reading this method from the bottom up
+ *
+ * @param filename The filename to retrieve.
+ * @return int The file descriptor to read the transformed file.
+ */
+static int handle_retr_plumbing(char *filename)
+{
+    int output_pipes[2];
+    if (pipe(output_pipes))
+    {
+        return -1;
+    }
+
+    int pid = fork();
+    if (pid < 0)
+    {
+        return -1;
+    }
+
+    if (!pid)
+    {
+        int mutator_pipes[2];
+        if (pipe(mutator_pipes))
+        {
+            _exit(EXIT_FAILURE);
+        }
+
+        int stuffer_pipes[2];
+        if (pipe(stuffer_pipes))
+        {
+            _exit(EXIT_FAILURE);
+        }
+
+        pid = fork();
+        if (pid < 0)
+        {
+            _exit(EXIT_FAILURE);
+        }
+
+        if (!pid)
+        {
+            close(mutator_pipes[0]);
+            close(mutator_pipes[1]);
+            close(stuffer_pipes[1]);
+            close(output_pipes[0]);
+
+            dup2(stuffer_pipes[0], STDIN_FILENO);
+            dup2(output_pipes[1], STDOUT_FILENO);
+
+            execlp(stuffer, stuffer, NULL);
+            _exit(EXIT_FAILURE);
+        }
+
+        pid = fork();
+        if (pid < 0)
+        {
+            _exit(EXIT_FAILURE);
+        }
+
+        if (!pid)
+        {
+            close(mutator_pipes[1]);
+            close(stuffer_pipes[0]);
+            close(output_pipes[0]);
+            close(output_pipes[1]);
+
+            dup2(mutator_pipes[0], STDIN_FILENO);
+            dup2(stuffer_pipes[1], STDOUT_FILENO);
+
+            execlp(mutator, mutator, NULL);
+            _exit(EXIT_FAILURE);
+        }
+
+        close(mutator_pipes[0]);
+        close(stuffer_pipes[0]);
+        close(stuffer_pipes[1]);
+        close(output_pipes[0]);
+        close(output_pipes[1]);
+
+        dup2(mutator_pipes[1], STDOUT_FILENO);
+
+        execlp("cat", "cat", filename, NULL);
+        _exit(EXIT_FAILURE);
+    }
+
+    close(output_pipes[1]);
+    return output_pipes[0];
+}
+
+/**
  * @brief Handles a RETR command.
  *
  * @note Multi-line response, handles the sends internally.
@@ -529,23 +621,36 @@ static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_
     char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/mail/") + sizeof(mail->uid)];
     snprintf(path, sizeof(path), "%s/%s/mail/%s", maildir, client->username, mail->uid);
 
-    char cmd[sizeof("cat ") + strlen(path) + sizeof(" | ") + strlen(mutator) + sizeof(" | ") + strlen(stuffer)];
-    snprintf(cmd, sizeof(cmd) - 1, "cat %s | %s | %s", path, mutator, stuffer);
-
-    FILE *transformed = popen(cmd, "r");
-    setvbuf(transformed, NULL, _IONBF, 0);
-
-    if (!transformed)
+    if (access(path, F_OK))
     {
-        char response[] = ERR_RESPONSE(" Failed to read and transform message");
+        char response[] = ERR_RESPONSE(" Failed to read message");
         asend(client_fd, response, sizeof(response) - 1);
         return KEEP_CONNECTION_OPEN;
     }
 
+    int pipe = handle_retr_plumbing(path);
+    if (pipe < 0)
+    {
+        char response[] = ERR_RESPONSE(" Internal error");
+        asend(client_fd, response, sizeof(response) - 1);
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    FILE *transformed = fdopen(pipe, "r");
+    if (!transformed)
+    {
+        close(pipe);
+        char response[] = ERR_RESPONSE(" Internal error");
+        asend(client_fd, response, sizeof(response) - 1);
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    setvbuf(transformed, NULL, _IONBF, 0);
+
     char buffer[] = OK_RESPONSE();
     asend(client_fd, buffer, sizeof(buffer) - 1);
 
-    fasend(client_fd, transformed, pclose);
+    fasend(client_fd, transformed, fclose);
     asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
 
     return KEEP_CONNECTION_OPEN;
