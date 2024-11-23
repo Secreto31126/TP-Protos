@@ -3,7 +3,7 @@
 #include <pop.h>
 #include <netutils.h>
 
-#define VERSION 1
+#define VERSION "1"
 
 typedef struct {
     char username[MAX_USERNAME_LENGTH + 1];
@@ -28,7 +28,8 @@ char set_management_port(const char *new_port);
 void set_maildir(const char *new_maildir);
 void set_transformer(const char *transformer);
 char set_user(const char *username, const char *password);
-char set_user_lock(const char *username, bool locked);
+char set_user_lock(const char *username);
+char unset_user_lock(const char *username);
 char delete_user(const char *username);
 
 void shutdown_pop_configs();
