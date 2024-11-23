@@ -7,6 +7,7 @@
 #include <netutils.h>
 #include <pop.h>
 #include <argument_parser.h>
+#include <sys/wait.h>
 
 #define DEFAULT_PORT_POP 8080
 #define DEFAULT_PORT_CONF 8081
@@ -64,9 +65,15 @@ static void sigint_handler(const int signal)
     sigterm_handler(signal);
 }
 
+static void sigchld_handler(const int signal)
+{
+    waitpid(-1, NULL, WNOHANG);
+}
+
 static void setup()
 {
     close(STDIN_FILENO);
     signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigterm_handler);
+    signal(SIGCHLD, sigchld_handler);
 }
