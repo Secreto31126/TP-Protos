@@ -346,8 +346,13 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
                         Data *splitter = pending[fd].splitters.first;
                         while (splitter)
                         {
-                            pending[fd].read_callback(pending[fd].file);
-                            // TODO: Remove file from poll
+                            if (splitter->splitter.fd >= 0)
+                            {
+                                pending[fd].read_callback(pending[fd].file);
+                                fds[i--] = fds[--nfds];
+                            }
+
+                            splitter = splitter->splitter.next;
                         }
 
                         free_data(pending[fd].messages.first);
