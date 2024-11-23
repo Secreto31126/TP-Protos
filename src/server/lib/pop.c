@@ -1058,7 +1058,7 @@ void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
         }
     }
 
-    if (!remove_lock(client->username))
+    if (client->authenticated && !remove_lock(client->username))
     {
         LOG("Failed to remove lock for %s\n", client->username);
     }
