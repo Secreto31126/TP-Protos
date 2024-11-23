@@ -60,6 +60,8 @@ void parse_arguments(int argc, const char *argv[], const char *progname)
                     pass++;
                     if(set_user(user, pass) != 0)
                     {
+                        printf("User must be between 1 an 40 chars long\n");
+                        printf("Pass must be between 1 an 256 chars long\n");
                         usage();
                     }
                     free(user);

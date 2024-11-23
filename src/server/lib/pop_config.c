@@ -218,7 +218,7 @@ void set_transformer(const char *transformer)
 
 char set_user(const char *username, const char *password)
 {
-    if(!safe_username(username)){
+    if(!safe_username(username) || *password == '\0' || strlen(password) > MAX_PASSWORD_LENGTH){
         return 1;
     }
 
