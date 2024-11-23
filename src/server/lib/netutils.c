@@ -90,6 +90,7 @@ typedef struct DataHeader
     {
         struct
         {
+            char ip[16];
             bool closed;
             DataList messages;
             DataList splitters;
@@ -275,6 +276,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
             pending[new_socket].type = FD_SOCKET;
             pending[new_socket].closed = false;
+            strncpy(pending[new_socket].ip, inet_ntoa(address.sin_addr), sizeof(pending[new_socket].ip));
             pending[new_socket].messages.first = NULL;
             pending[new_socket].messages.last = NULL;
 
