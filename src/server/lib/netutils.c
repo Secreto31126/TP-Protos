@@ -300,7 +300,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
             if (result != KEEP_CONNECTION_OPEN)
             {
-                LOG("Closing connection: socket fd %d\n", new_socket);
+                LOG("Rejected connection: socket fd %d\n", new_socket);
 
                 if (result == CONNECTION_ERROR)
                 {
