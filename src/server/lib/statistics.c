@@ -117,7 +117,7 @@ void add_log_to_hashset(hashset *set, log *l)
     if (u_log == NULL)
     {
         u_log = new_user_logs(l->username);
-        hashset_add(set, l);
+        hashset_add(set, u_log);
     }
     add_log(u_log, l);
 }
