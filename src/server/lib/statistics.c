@@ -86,7 +86,7 @@ statistics_manager *create_statistics_manager()
 log *new_log(char *username, timestamp time, void *data, log_t type)
 {
     log *l = malloc(sizeof(log));
-    l->data = data;
+    l->username = username;
     l->time = time;
     l->data = data;
     l->type = type;
