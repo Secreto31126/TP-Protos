@@ -793,7 +793,7 @@ static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int 
     }
 
     char response[] = ERR_RESPONSE(" Invalid command");
-    asend(client_fd, response, sizeof(response));
+    asend(client_fd, response, sizeof(response) - 1);
     return KEEP_CONNECTION_OPEN;
 }
 
