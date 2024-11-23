@@ -1002,7 +1002,7 @@ void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
 
     if (result == CONNECTION_ERROR)
     {
-        return;
+        client->update = false;
     }
 
     if (client->update)
