@@ -85,28 +85,23 @@ typedef struct Connection
 static Connection *connections[MAGIC_NUMBER] = {NULL};
 
 /**
- * @brief The directory where the users mailboxes are stored.
- */
-static const char *maildir;
-/**
- * @brief The transformer to use for the mail messages.
- */
-static const char *mutator;
-/**
  * @brief The path to the bytestuffer program.
  */
 static const char *stuffer;
 
 void pop_init(const char *dir, const char *transformer, const char *bytestuffer)
 {
-    maildir = dir ? dir : "./dist/mail";
-    mutator = transformer ? transformer : "cat";
-    stuffer = bytestuffer ? bytestuffer : "./dist/bytestuff";
-
-    if (access(maildir, F_OK) == -1)
+    if (dir)
     {
-        mkdir(maildir, S_IRWXU);
+        set_maildir(dir);
     }
+
+    if (transformer)
+    {
+        set_transformer(transformer);
+    }
+
+    stuffer = bytestuffer ? bytestuffer : "./dist/bytestuff";
 }
 
 void pop_stop()
@@ -145,20 +140,18 @@ static int parse_pop_cmd(char *cmd)
     return argc;
 }
 
-// /**
-//  * @brief Validate if a user exists in the mail directory.
-//  * @note The username MUST be a safe string. Use safe_username() to validate.
-//  *
-//  * @param username The input username (NULL terminated).
-//  * @return true The user exists.
-//  * @return false The user does not exist.
-//  */
-// static bool user_exists(const char *username)
-// {
-//     char path[strlen(maildir) + MAX_USERNAME_LENGTH + 1];
-//     snprintf(path, sizeof(path), "%s/%s", maildir, username);
-//     return access(path, F_OK) != -1;
-// }
+/**
+ * @brief Validate if a user exists in the mail directory.
+ * @note The username MUST be a safe string. Use safe_username() to validate.
+ *
+ * @param username The input username (NULL terminated).
+ * @return true The user exists.
+ * @return false The user does not exist.
+ */
+static bool user_exists(const char *username)
+{
+    return get_user(username) != NULL;
+}
 
 /**
  * @brief Validate if a user mail directory isn't locked.
@@ -166,13 +159,12 @@ static int parse_pop_cmd(char *cmd)
  *
  * @param username The input username (NULL terminated).
  * @return true The user directory is locked.
- * @return false The user directory is not locked.
+ * @return false The user directory is not locked or doesn't exists.
  */
 static bool user_locked(const char *username)
 {
-    char path[strlen(maildir) + MAX_USERNAME_LENGTH + sizeof("/lock")];
-    snprintf(path, sizeof(path), "%s/%s/lock", maildir, username);
-    return access(path, F_OK) != -1;
+    User *user = get_user(username);
+    return user && user->locked;
 }
 
 /**
@@ -185,17 +177,7 @@ static bool user_locked(const char *username)
  */
 static bool set_lock(const char *username)
 {
-    char path[strlen(maildir) + MAX_USERNAME_LENGTH + sizeof("/lock")];
-    snprintf(path, sizeof(path), "%s/%s/lock", maildir, username);
-
-    FILE *file = fopen(path, "w");
-    if (!file)
-    {
-        return false;
-    }
-
-    fclose(file);
-    return true;
+    return set_user_lock(username) == 0;
 }
 
 /**
@@ -204,14 +186,11 @@ static bool set_lock(const char *username)
  *
  * @param username The input username (NULL terminated).
  * @return true The lock was successfully removed.
- * @return false The lock could not be removed (or did not exist).
+ * @return false The lock could not be removed (invalid user).
  */
 static bool remove_lock(const char *username)
 {
-    char path[strlen(maildir) + MAX_USERNAME_LENGTH + sizeof("/lock")];
-    snprintf(path, sizeof(path), "%s/%s/lock", maildir, username);
-
-    return remove(path) == 0;
+    return unset_user_lock(username) == 0;
 }
 
 /**
@@ -225,6 +204,8 @@ static bool remove_lock(const char *username)
  */
 static bool pass_valid(const char *username, const char *pass)
 {
+    char *maildir = get_maildir();
+
     char path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/data/pass")];
     snprintf(path, sizeof(path), "%s/%s/data/pass", maildir, username);
 
@@ -257,6 +238,8 @@ static bool pass_valid(const char *username, const char *pass)
  */
 static bool set_user_mails(const char *username, Connection *client)
 {
+    char *maildir = get_maildir();
+
     char new_path[strlen(maildir) + sizeof("/") + MAX_USERNAME_LENGTH + sizeof("/new")];
     snprintf(new_path, sizeof(new_path), "%s/%s/new", maildir, username);
 
@@ -375,6 +358,14 @@ static size_t handle_user(Connection *client, const char *username, char **respo
  */
 static size_t handle_pass(Connection *client, const char *pass, char **response)
 {
+    if (!user_exists(client->username))
+    {
+        client->username[0] = 0;
+
+        *response = ERR_RESPONSE(" Invalid username");
+        return sizeof(ERR_RESPONSE(" Invalid username")) - 1;
+    }
+
     if (!pass_valid(client->username, pass))
     {
         client->username[0] = 0;
@@ -550,6 +541,8 @@ static ON_MESSAGE_RESULT handle_list_all(Connection *client, int client_fd)
  */
 static int handle_retr_plumbing(char *filename)
 {
+    char *transformer = get_transformer();
+
     int output_pipes[2];
     if (pipe(output_pipes))
     {
@@ -564,8 +557,8 @@ static int handle_retr_plumbing(char *filename)
 
     if (!pid)
     {
-        int mutator_pipes[2];
-        if (pipe(mutator_pipes))
+        int transformer_pipes[2];
+        if (pipe(transformer_pipes))
         {
             _exit(EXIT_FAILURE);
         }
@@ -584,8 +577,8 @@ static int handle_retr_plumbing(char *filename)
 
         if (!pid)
         {
-            close(mutator_pipes[0]);
-            close(mutator_pipes[1]);
+            close(transformer_pipes[0]);
+            close(transformer_pipes[1]);
             close(stuffer_pipes[1]);
             close(output_pipes[0]);
 
@@ -604,25 +597,25 @@ static int handle_retr_plumbing(char *filename)
 
         if (!pid)
         {
-            close(mutator_pipes[1]);
+            close(transformer_pipes[1]);
             close(stuffer_pipes[0]);
             close(output_pipes[0]);
             close(output_pipes[1]);
 
-            dup2(mutator_pipes[0], STDIN_FILENO);
+            dup2(transformer_pipes[0], STDIN_FILENO);
             dup2(stuffer_pipes[1], STDOUT_FILENO);
 
-            execlp(mutator, mutator, NULL);
+            execlp(transformer, transformer, NULL);
             _exit(EXIT_FAILURE);
         }
 
-        close(mutator_pipes[0]);
+        close(transformer_pipes[0]);
         close(stuffer_pipes[0]);
         close(stuffer_pipes[1]);
         close(output_pipes[0]);
         close(output_pipes[1]);
 
-        dup2(mutator_pipes[1], STDOUT_FILENO);
+        dup2(transformer_pipes[1], STDOUT_FILENO);
 
         execlp("cat", "cat", filename, NULL);
         _exit(EXIT_FAILURE);
@@ -644,6 +637,8 @@ static int handle_retr_plumbing(char *filename)
  */
 static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_fd)
 {
+    char *maildir = get_maildir();
+
     Mailfile *mail = client->mails + (msg - 1);
 
     if (!mail->uid[0])
@@ -1034,6 +1029,8 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
 
 void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result)
 {
+    char *maildir = get_maildir();
+
     Connection *client = connections[client_fd];
 
     if (result == CONNECTION_ERROR)
