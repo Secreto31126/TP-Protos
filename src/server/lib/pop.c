@@ -440,6 +440,7 @@ static size_t handle_stat(Connection *client, char **response)
  * @brief Handles a LIST command with arguments.
  *
  * @note Doesn't validate the message number is in range.
+ * @note The response must be freed by the caller.
  *
  * @param client The client connection.
  * @param msg The message number to list (1-indexed).
@@ -465,7 +466,7 @@ static size_t handle_list(Connection *client, size_t msg, char **response)
     char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
     size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu %zu"), msg, mail->size);
 
-    *response = buffer;
+    *response = strdup(buffer);
     return POP_MIN(len);
 }
 
@@ -897,6 +898,7 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
 
         size_t len = handle_list(client, msg, &buffer);
         asend(client_fd, buffer, len);
+        free(buffer);
         return KEEP_CONNECTION_OPEN;
     }
 
