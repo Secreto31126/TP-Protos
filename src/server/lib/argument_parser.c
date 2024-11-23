@@ -6,9 +6,10 @@ static void help();
 
 static const char *_progname;
 
-void parse_arguments(int argc, const char *argv[], const char *progname, struct sockaddr_in *address_pop, struct sockaddr_in *address_conf, const char **dir_path)
+void parse_arguments(int argc, const char *argv[], const char *progname)
 {
     _progname = progname;
+    int added_users = 0;
     for (size_t i = 1; i < argc; i++)
     {
         if (argv[i][0] == '-')
@@ -42,7 +43,29 @@ void parse_arguments(int argc, const char *argv[], const char *progname, struct 
                 set_transformer(argv[++i]);
                 break;
             case 'u':
-                //TODO Loop para agregar todos los usuarios
+                while(++i < argc && argv[i][0] != '-')
+                {
+                    if(added_users == 10)
+                    {
+                        printf("Max users reached\n");
+                        usage();
+                    }
+                    char *user = strdup(argv[i]);
+                    char *pass = strchr(user, ':');
+                    if(pass == NULL)
+                    {
+                        usage();
+                    }
+                    *pass = '\0';
+                    pass++;
+                    if(set_user(user, pass) != 0)
+                    {
+                        usage();
+                    }
+                    free(user);
+                    added_users++;
+                }
+                i--;
                 break;
             default:
                 usage();
