@@ -983,8 +983,14 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
             char *data = start_cmd;
             if (client->buffer[0])
             {
+                // If the buffer is full, drop the connection
+                if (sizeof(client->buffer) - strlen(client->buffer) - 1 < length - (start_cmd - buffer))
+                {
+                    return CONNECTION_ERROR;
+                }
+
+                strncat(client->buffer, start_cmd, sizeof(client->buffer) - strlen(client->buffer) - 1);
                 data = client->buffer;
-                strncat(data, start_cmd, sizeof(client->buffer) - strlen(client->buffer) - 1);
             }
 
             ON_MESSAGE_RESULT result = handle_pop_single_cmd(client, client_fd, data, strlen(data));
@@ -1003,6 +1009,12 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
     // If there is a command left in the body, store it for the next message
     if (start_cmd != buffer + length)
     {
+        // If the buffer is full, drop the connection
+        if (sizeof(client->buffer) - strlen(client->buffer) - 1 < length - (start_cmd - buffer))
+        {
+            return CONNECTION_ERROR;
+        }
+
         strncpy(client->buffer, start_cmd, length - (start_cmd - buffer));
         client->buffer[length - (start_cmd - buffer)] = 0;
     }
