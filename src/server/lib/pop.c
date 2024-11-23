@@ -858,7 +858,7 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         char *err;
         size_t msg = strtoull(num, &err, 10);
 
-        if (*err || !(0 < msg && msg < MAX_CLIENT_MAILS) || !isdigit(*num))
+        if (*err || !(0 < msg && msg < client->mail_count) || !isdigit(*num))
         {
             char response[] = ERR_RESPONSE(" Invalid message number");
             asend(client_fd, response, sizeof(response) - 1);
@@ -889,7 +889,7 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         char *err;
         size_t msg = strtoull(num, &err, 10);
 
-        if (*err || !(0 < msg && msg < MAX_CLIENT_MAILS) || !isdigit(*num))
+        if (*err || !(0 < msg && msg < client->mail_count) || !isdigit(*num))
         {
             char response[] = ERR_RESPONSE(" Invalid message number");
             asend(client_fd, response, sizeof(response) - 1);
@@ -916,7 +916,7 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         char *err;
         size_t msg = strtoull(num, &err, 10);
 
-        if (*err || !(0 < msg && msg < MAX_CLIENT_MAILS) || !isdigit(*num))
+        if (*err || !(0 < msg && msg < client->mail_count) || !isdigit(*num))
         {
             char response[] = ERR_RESPONSE(" Invalid message number");
             asend(client_fd, response, sizeof(response) - 1);
