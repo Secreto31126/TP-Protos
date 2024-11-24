@@ -345,20 +345,12 @@ static size_t handle_user(Connection *client, const char *username, char **respo
  */
 static size_t handle_pass(Connection *client, const char *pass, char **response)
 {
-    if (!user_exists(client->username))
+    if (!user_exists(client->username) || !pass_valid(client->username, pass))
     {
         client->username[0] = 0;
 
-        *response = ERR_RESPONSE(" Invalid username");
-        return sizeof(ERR_RESPONSE(" Invalid username")) - 1;
-    }
-
-    if (!pass_valid(client->username, pass))
-    {
-        client->username[0] = 0;
-
-        *response = ERR_RESPONSE(" Invalid password");
-        return sizeof(ERR_RESPONSE(" Invalid password")) - 1;
+        *response = ERR_RESPONSE(" Invalid credentials");
+        return sizeof(ERR_RESPONSE(" Invalid credentials")) - 1;
     }
 
     if (user_locked(client->username))

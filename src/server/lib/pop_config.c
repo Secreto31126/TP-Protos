@@ -197,7 +197,10 @@ char set_management_port(const char *new_port)
 
 void set_maildir(const char *new_maildir)
 {   
-    // unsigned int new_maildir_length = strlen(new_maildir);
+    if(_mail_dir == new_maildir)
+    {
+        return;
+    }
 
     if (access(new_maildir, F_OK) == -1)
     {
