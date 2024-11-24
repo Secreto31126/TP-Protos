@@ -79,6 +79,7 @@ statistics_manager *create_statistics_manager()
     sm->current_connections = 0;
     sm->historic_connections = 0;
     sm->transferred_bytes = 0;
+    sm->max_current_connections = 0;
     sm->user_logs = new_hashset(hash_user_logs, are_equal_logs, deep_free_logs, BLOCK);
     return sm;
 }
@@ -135,6 +136,7 @@ void log_connect(statistics_manager *sm, char *username, timestamp time)
 {
     sm->historic_connections++;
     sm->current_connections++;
+    sm->max_current_connections = sm->max_current_connections < sm->current_connections ? sm->current_connections : sm->max_current_connections;
     add_log_to_hashset(sm->user_logs, new_log(username, time, NULL, CONNECTION));
 }
 void log_disconnect(statistics_manager *sm, char *username, timestamp time)
@@ -192,4 +194,9 @@ uint64_t read_historic_connections(statistics_manager *sm)
 uint64_t read_current_connections(statistics_manager *sm)
 {
     return sm->current_connections;
+}
+
+uint64_t read_max_current_connections(statistics_manager *sm)
+{
+    return sm->max_current_connections;
 }

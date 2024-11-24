@@ -5,6 +5,7 @@
 typedef struct statistics_manager
 {
     uint64_t current_connections;
+    uint64_t max_current_connections;
     uint64_t historic_connections;
     uint64_t transferred_bytes;
     hashset *user_logs;
@@ -57,3 +58,4 @@ uint64_t get_user_logs(statistics_manager *sm, char *username, log *log_buffer, 
 uint64_t read_bytes_transferred(statistics_manager *sm, uint64_t bytes);
 uint64_t read_historic_connections(statistics_manager *sm);
 uint64_t read_current_connections(statistics_manager *sm);
+uint64_t read_max_current_connections(statistics_manager *sm);
