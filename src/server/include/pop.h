@@ -11,13 +11,11 @@
 
 /**
  * @brief Initialize the POP3 server.
- * @note The transformer must take a filename as last argument.
+ * @note The bytestuffer must take input from stdin and output to stdout.
  *
- * @param dir The mail directory, defaults to "./dist/mail".
- * @param transformer The transformer to use for the mail messages, defaults to "cat".
  * @param bytestuffer The path to the bytestuffer program, defaults to "./dist/bytestuff".
  */
-void pop_init(const char *dir, const char *transformer, const char *bytestuffer);
+void pop_init(const char *bytestuffer);
 /**
  * @brief Finalize the POP3 server.
  */
@@ -29,10 +27,11 @@ void pop_stop();
  *
  * @param client_fd The client file descriptor.
  * @param address The client address information.
+ * @param port The port the connection was received on.
  * @return KEEP_CONNECTION_OPEN if the connection is handled as expected.
  * @return CONNECTION_ERROR if an error occurred.
  */
-ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address);
+ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address, const short port);
 
 /**
  * @brief Handles a POP3 message, which may contain multiple instructions separated by \\r\\n.
@@ -42,9 +41,10 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address);
  * @param client_fd The client file descriptor.
  * @param body The message body.
  * @param length The message length.
+ * @param port The port the message was received on.
  * @return ON_MESSAGE_RESULT The result of the message handling.
  */
-ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length);
+ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const short port);
 
 /**
  * @brief Free the resources associated with a client connection.
@@ -54,7 +54,8 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
  *
  * @param client_fd The client file descriptor.
  * @param result The result of the last message handled.
+ * @param port The port the connection was received on.
  */
-void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result);
+void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result, const short port);
 
 #endif

@@ -15,13 +15,13 @@
     close(fds[i].fd);              \
     fds[i--] = fds[--nfds];
 
-#define NOTIFY_CLOSE(fds, pending, fd, on_close, status)  \
-    if (!pending[fd].closed)                              \
-    {                                                     \
-        fds[i].events &= ~POLLIN;                         \
-        on_close(fd, status);                             \
-        log_disconnect(stats, pending[fd].ip, log_now()); \
-        pending[fd].closed = true;                        \
+#define NOTIFY_CLOSE(fds, pending, fd, on_close, status)             \
+    if (!pending[fd].closed)                                         \
+    {                                                                \
+        fds[i].events &= ~POLLIN;                                    \
+        on_close(fd, status, pending[fd].server_port);               \
+        log_disconnect(stats, inet_ntoa(pending[fd].ip), log_now()); \
+        pending[fd].closed = true;                                   \
     }
 
 typedef struct DataList
@@ -92,7 +92,8 @@ typedef struct DataHeader
     {
         struct
         {
-            char ip[16];
+            struct in_addr ip;
+            short server_port;
             bool closed;
             DataList messages;
             DataList splitters;
@@ -166,6 +167,8 @@ static struct pollfd fds[MAGIC_NUMBER];
 static sem_t fds_mutex;
 static int nfds = 0;
 
+static int servers_count = 0;
+
 // Array to hold pending messages or files
 static DataHeader pending[MAGIC_NUMBER];
 
@@ -221,6 +224,23 @@ int start_server(struct sockaddr_in *address)
     return server_fd;
 }
 
+void add_server(int server_fd, struct sockaddr_in *address)
+{
+    sem_wait(&fds_mutex);
+
+    fds[nfds].fd = server_fd;
+    fds[nfds].events = POLLIN;
+    nfds++;
+
+    pending[server_fd].type = FD_SOCKET;
+    pending[server_fd].ip = address->sin_addr;
+    pending[server_fd].server_port = ntohs(address->sin_port);
+
+    servers_count++;
+
+    sem_post(&fds_mutex);
+}
+
 static ON_MESSAGE_RESULT keep_alive_noop()
 {
     return KEEP_CONNECTION_OPEN;
@@ -230,21 +250,13 @@ static void noop()
 {
 }
 
-int server_loop(int server_fd, const bool *done, connection_event on_connection, message_event on_message, close_event on_close)
+int server_loop(const bool *done, connection_event on_connection, message_event on_message, close_event on_close)
 {
     struct sockaddr_in address;
     int new_socket, addrlen = sizeof(address);
 
-    on_connection = on_connection ? on_connection : keep_alive_noop;
-    on_close = on_close ? on_close : noop;
-
-    sem_wait(&fds_mutex);
-
-    fds[0].fd = server_fd;
-    fds[0].events = POLLIN;
-    nfds = 1;
-
-    sem_post(&fds_mutex);
+    on_connection = on_connection ? on_connection : (connection_event) keep_alive_noop;
+    on_close = on_close ? on_close : (close_event) noop;
 
     stats = create_statistics_manager();
 
@@ -270,56 +282,62 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
         sem_wait(&fds_mutex);
 
-        // Check for new connections on the server socket
-        if (fds[0].revents & POLLIN)
+        for (int i = 0; i < servers_count; i++)
         {
-            if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0)
+            int server_fd = fds[i].fd;
+
+            // Check for new connections on the server socket
+            if (fds[i].revents & POLLIN)
             {
-                perror("accept");
-                destroy_statistics_manager(stats);
-                return EXIT_FAILURE;
-            }
-
-            LOG("New connection: socket fd %s:%d\n", inet_ntoa(address.sin_addr), new_socket);
-
-            pending[new_socket].type = FD_SOCKET;
-            pending[new_socket].closed = false;
-            strncpy(pending[new_socket].ip, inet_ntoa(address.sin_addr), sizeof(pending[new_socket].ip));
-            pending[new_socket].messages.first = NULL;
-            pending[new_socket].messages.last = NULL;
-
-            log_connect(stats, pending[new_socket].ip, log_now());
-
-            // Add new socket to fds array
-            fds[nfds].fd = new_socket;
-            fds[nfds].events = POLLIN;
-            fds[nfds].revents = 0;
-            nfds++;
-
-            ON_MESSAGE_RESULT result = on_connection(new_socket, address);
-
-            if (result != KEEP_CONNECTION_OPEN)
-            {
-                LOG("Rejected connection: socket fd %d\n", new_socket);
-
-                if (result == CONNECTION_ERROR)
+                if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0)
                 {
-                    // TODO: Real stats
-                    LOG("Error handling message\n");
-
-                    close(new_socket);
-                    nfds--;
+                    perror("accept");
+                    destroy_statistics_manager(stats);
+                    return EXIT_FAILURE;
                 }
-                else if (finish_transmition(&pending[new_socket].messages, new_socket, nfds - 1))
+
+                pending[new_socket].type = FD_SOCKET;
+                pending[new_socket].closed = false;
+                pending[new_socket].ip = address.sin_addr;
+                pending[new_socket].server_port = pending[server_fd].server_port;
+                pending[new_socket].messages.first = NULL;
+                pending[new_socket].messages.last = NULL;
+
+                LOG("New connection: socket fd %s:%d\n", inet_ntoa(address.sin_addr), new_socket);
+
+                log_connect(stats, inet_ntoa(address.sin_addr), log_now());
+
+                // Add new socket to fds array
+                fds[nfds].fd = new_socket;
+                fds[nfds].events = POLLIN;
+                fds[nfds].revents = 0;
+                nfds++;
+
+                ON_MESSAGE_RESULT result = on_connection(new_socket, address, pending[server_fd].server_port);
+
+                if (result != KEEP_CONNECTION_OPEN)
                 {
-                    close(new_socket);
-                    nfds--;
+                    LOG("Rejected connection: socket fd %d\n", new_socket);
+
+                    if (result == CONNECTION_ERROR)
+                    {
+                        // TODO: Real stats
+                        LOG("Error handling message\n");
+
+                        close(new_socket);
+                        nfds--;
+                    }
+                    else if (finish_transmition(&pending[new_socket].messages, new_socket, nfds - 1))
+                    {
+                        close(new_socket);
+                        nfds--;
+                    }
                 }
             }
         }
 
         // Check each fd for activity
-        for (int i = 1; i < nfds; i++)
+        for (int i = servers_count; i < nfds; i++)
         {
             int fd = fds[i].fd;
 
@@ -396,7 +414,7 @@ int server_loop(int server_fd, const bool *done, connection_event on_connection,
 
                     LOG("Received from client %d (%d bytes): %.512s\n", fd, len, buffer);
 
-                    ON_MESSAGE_RESULT result = on_message(fd, buffer, len);
+                    ON_MESSAGE_RESULT result = on_message(fd, buffer, len, pending[fd].server_port);
 
                     if (result != KEEP_CONNECTION_OPEN)
                     {
