@@ -6,8 +6,8 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#define POP_DEFAULT_PORT 28160          // htons(110)
-#define MANAGER_DEFAULT_PORT 57616      // htons(4321) because why not
+#define POP_DEFAULT_PORT 28160     // htons(110)
+#define MANAGER_DEFAULT_PORT 57616 // htons(4321) because why not
 
 static char *const _default_mail_dir = "./dist/mail";
 static char *_mail_dir = _default_mail_dir;
@@ -21,14 +21,12 @@ static User _users[MAX_USERS] = {0};
 static struct sockaddr_in _pop_addr = {
     .sin_family = AF_INET,
     .sin_port = POP_DEFAULT_PORT,
-    .sin_addr.s_addr = INADDR_ANY
-    };
+    .sin_addr.s_addr = INADDR_ANY};
 
 static struct sockaddr_in _management_addr = {
     .sin_family = AF_INET,
     .sin_port = MANAGER_DEFAULT_PORT,
-    .sin_addr.s_addr = INADDR_ANY
-    };
+    .sin_addr.s_addr = INADDR_ANY};
 
 static char set_address(const char *input, struct sockaddr_in *address)
 {
@@ -84,7 +82,8 @@ static bool safe_username(const char *username)
     return true;
 }
 
-static void create_user_maildir(const char* base_maildir, const char* username){
+static void create_user_maildir(const char *base_maildir, const char *username)
+{
     size_t maildir_len = strlen(base_maildir);
 
     char *user_base_dir = calloc(1, maildir_len + MAX_USERNAME_LENGTH + 2);
@@ -157,23 +156,25 @@ User *get_users_arr()
 
 User *get_user(const char *username)
 {
-    if(!safe_username(username)){
+    if (!safe_username(username))
+    {
         return NULL;
     }
 
     size_t i = 0;
     for (; i < _user_count; i++)
     {
-        if(strncmp(username, _users[i].username, MAX_USERNAME_LENGTH) == 0){
+        if (strncmp(username, _users[i].username, MAX_USERNAME_LENGTH) == 0)
+        {
             break;
         }
     }
-    if(i < _user_count){
+    if (i < _user_count)
+    {
         return &(_users[i]);
     }
     return NULL;
 }
-
 
 char set_pop_address(const char *new_addr)
 {
@@ -196,8 +197,8 @@ char set_management_port(const char *new_port)
 }
 
 void set_maildir(const char *new_maildir)
-{   
-    if(_mail_dir == new_maildir)
+{
+    if (_mail_dir == new_maildir)
     {
         return;
     }
@@ -217,14 +218,12 @@ void set_maildir(const char *new_maildir)
         free(_mail_dir);
     }
 
-    _mail_dir = malloc(strlen(new_maildir) + 1);
-    strcpy(_mail_dir, new_maildir);
+    _mail_dir = strdup(new_maildir);
 }
-
 
 void set_transformer(const char *transformer)
 {
-    if(_transformer == transformer)
+    if (_transformer == transformer)
     {
         return;
     }
@@ -239,28 +238,35 @@ void set_transformer(const char *transformer)
 
 char set_user(const char *username, const char *password)
 {
-    if(!safe_username(username) || *password == '\0' || strlen(password) > MAX_PASSWORD_LENGTH){
+    if (!safe_username(username) || *password == '\0' || strlen(password) > MAX_PASSWORD_LENGTH)
+    {
         return 1;
     }
 
     size_t i = 0;
     for (; i < _user_count; i++)
     {
-        if(strncmp(username, _users[i].username, MAX_USERNAME_LENGTH) == 0){
+        if (strncmp(username, _users[i].username, MAX_USERNAME_LENGTH) == 0)
+        {
             break;
         }
     }
-    if(i < _user_count){
+    if (i < _user_count)
+    {
         strncpy(_users[i].password, password, MAX_PASSWORD_LENGTH);
-    } else if(_user_count < MAX_USERS){
+    }
+    else if (_user_count < MAX_USERS)
+    {
         _users[_user_count].locked = false;
         strncpy(_users[_user_count].password, password, MAX_PASSWORD_LENGTH);
         strncpy(_users[_user_count].username, username, MAX_USERNAME_LENGTH);
 
         create_user_maildir(_mail_dir, username);
-        
+
         _user_count++;
-    } else{
+    }
+    else
+    {
         return 2;
     }
     return 0;
@@ -268,7 +274,20 @@ char set_user(const char *username, const char *password)
 
 char delete_user(const char *username)
 {
-    //TODO
+    User *user = get_user(username);
+    if (user == NULL)
+    {
+        return 1;
+    }
+
+    if(user->locked){
+        return 2;       //The user is logged in so it can't be deleted
+    }
+
+    user->locked = _users[_user_count - 1].locked;
+    strcpy(user->password, _users[_user_count - 1].password);
+    strcpy(user->username, _users[_user_count - 1].username);
+    _user_count--;
     return 0;
 }
 
@@ -289,7 +308,8 @@ char unset_user_lock(const char *username)
 {
     User *user = get_user(username);
 
-    if(user == NULL){
+    if (user == NULL)
+    {
         return 1;
     }
 
@@ -299,10 +319,12 @@ char unset_user_lock(const char *username)
 
 void shutdown_pop_configs()
 {
-    if(_mail_dir && _mail_dir != _default_mail_dir){
+    if (_mail_dir && _mail_dir != _default_mail_dir)
+    {
         free(_mail_dir);
     }
-    if(_transformer && _transformer != _default_transformer){
+    if (_transformer && _transformer != _default_transformer)
+    {
         free(_transformer);
     }
 }
