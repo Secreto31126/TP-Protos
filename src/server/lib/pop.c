@@ -670,7 +670,7 @@ static ON_MESSAGE_RESULT handle_retr(Connection *client, size_t msg, int client_
     asend(client_fd, buffer, sizeof(buffer) - 1);
 
     fasend(client_fd, transformed, fclose);
-    asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
+    asend(client_fd, POP3_ENTER "." POP3_ENTER, sizeof(POP3_ENTER "." POP3_ENTER) - 1);
 
     return KEEP_CONNECTION_OPEN;
 }
