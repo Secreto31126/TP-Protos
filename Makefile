@@ -19,5 +19,6 @@ manager:
 clean:
 	make clean -C src/server
 	make clean -C src/bytestuff
+	make clean -C src/manager
 
 .PHONY: all server bytestuff manager clean
