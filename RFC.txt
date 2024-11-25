@@ -1,0 +1,345 @@
+## POP3 server manager protocol
+- Autenticación con usuario y contraseña
+- Agregar/actualizar usuarios con su contraseña
+- Eliminar usuarios
+- Cambiar el directorio donde se guardan los correos
+- Setear el transformador de mensajes
+- Obtener métricas
+    - Obtener la cantidad de conexiones históricas
+    - Obtener la máxima cantidad de conexiones simultaneas
+    - Obtener el número de bytes transferidos
+    - Obetener una lista de accesos por usuario para ver el historial de conexiones y la IP origen de las mismas.
+
+Los usuarios deben ser de hasta 40 caracteres al igual que las contraseñas.
+
+Decisiones:
+- Orientado a la conexión => TCP
+- Binario
+- Inicio de la comunicación dado por el cliente
+
+Comandos:
+Generalidades:
+- Todos los comandos empiezan con un byte que indica el método a ejecutar a excpción de la autenticación que se realiza con el usuario y la contraseña.
+
+Autenticación:
+
+        +-----+------+------+------+------+
+        | VER | ULEN | USER | PLEN | PASS |
+        +-----+------+------+------+------+
+        |  1  |  1   | ULEN |  1   | PLEN |
+        +-----+------+------+------+------+
+
+Respuestas:
+        +-----+--------+
+        | VER | STATUS |
+        +-----+--------+
+        |  1  |   1    |
+        +-----+--------+
+- VER: Versión del protocolo (en principio siempre 1)
+- Status:
+    - 0: OK
+    - 1: Error
+
+Agregar/actualizar usuarios:
+
+        +---+------+------+------+------+
+        | 0 | ULEN | USER | PLEN | PASS |
+        +---+------+------+------+------+
+        | - |  1   | ULEN |  1   | PLEN |
+        +---+------+------+------+------+
+
+Respuestas:
+        +--------+
+        | STATUS |
+        +--------+
+        |   1    |
+        +--------+
+
+- Status:
+    - 0: OK created
+    - 1: OK updated password
+    - 2: Error unsafe username
+    - 3: Error unsafe password
+    - 4: Error user limit reached
+
+Eliminar usuarios:
+
+        +---+------+------+
+        | 1 | ULEN | USER |
+        +---+------+------+
+        | - |  1   | ULEN |
+        +---+------+------+
+
+Respuestas:
+        +--------+
+        | STATUS |
+        +--------+
+        |   1    |
+        +--------+
+
+- Status:
+    - 0: OK deleted
+    - 1: Error user not found
+
+Obtener la lista de usuarios:
+
+        +---+
+        | 2 |
+        +---+
+        | - |
+        +---+
+
+Respuestas:
+        +--------+------+-----------+
+        | STATUS | RLEN |   RESP    |
+        +--------+------+-----------+
+        |   1    |  1   | 40 * RLEN |
+        +--------+------+-----------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+- RLEN: Cantidad de usuarios
+- RESP: Lista de usuarios (cada usuario está NULL terminated)
+
+Obtener contraseña de un usuario:
+
+        +---+------+------+
+        | 3 | ULEN | USER |
+        +---+------+------+
+        | - |  1   | ULEN |
+        +---+------+------+
+
+Respuestas:
+        +--------+------+------+
+        | STATUS | PLEN | PASS |
+        +--------+------+------+
+        |   1    |  1   | PLEN |
+        +--------+------+------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+- PLEN: Cantidad de bytes de la respuesta
+- PASS: Contraseña del usuario
+
+Cambiar el directorio donde se guardan los correos:
+
+        +---+------+------+
+        | 4 | DLEN | DIR  |
+        +---+------+------+
+        | - |  1   | DLEN |
+        +---+------+------+
+
+Respuestas:
+        +--------+
+        | STATUS |
+        +--------+
+        |   1    |
+        +--------+
+
+- Status:
+    - 0: OK
+    - 1: Error unsafe directory
+
+Getter de directorio donde se guardan los correos:
+
+        +---+
+        | 5 |
+        +---+
+        | - |
+        +---+
+
+Respuestas:
+        +--------+------+------+
+        | STATUS | DLEN | DIR  |
+        +--------+------+------+
+        |   1    |  1   | DLEN |
+        +--------+------+------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+- DLEN: Cantidad de bytes de la respuesta
+- DIR: Directorio donde se guardan los correos
+
+Setear el transformador de mensajes:
+
+        +---+------+------+
+        | 6 | TLEN | TRAN |
+        +---+------+------+
+        | - |  1   | TLEN |
+        +---+------+------+
+
+Respuestas:
+        +--------+
+        | STATUS |
+        +--------+
+        |   1    |
+        +--------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+
+TODO: Errores???
+
+Getter del transformador de mensajes:
+
+        +---+
+        | 7 |
+        +---+
+        | - |
+        +---+
+
+Respuestas:
+        +--------+------+------+
+        | STATUS | TLEN | TRAN |
+        +--------+------+------+
+        |   1    |  1   | TLEN |
+        +--------+------+------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+- TLEN: Cantidad de bytes de la respuesta
+- TRAN: Transformador de mensajes
+
+Obtener cantidad de conexiones históricas:
+
+        +---+
+        | 8 |
+        +---+
+        | - |
+        +---+
+
+Respuestas:
+        +--------+------+------+
+        | STATUS | RLEN | RESP |
+        +--------+------+------+
+        |   1    |  1   | RLEN |
+        +--------+------+------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+- RLEN: Cantidad de bytes de la respuesta
+- RESP: Cantidad de conexiones históricas expresada como una cadena de caracteres
+(A chequear, podriamos pasar un numero y ver como es la bola de little/big endian)
+
+Obtener la máxima cantidad de conexiones simultaneas:
+
+        +---+
+        | 9 |
+        +---+
+        | - |
+        +---+
+
+Respuestas:
+        +--------+------+------+
+        | STATUS | RLEN | RESP |
+        +--------+------+------+
+        |   1    |  1   | RLEN |
+        +--------+------+------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+- RLEN: Cantidad de bytes de la respuesta
+- RESP: Cantidad de conexiones simultaneas expresada como una cadena de caracteres
+(A chequear, podriamos pasar un numero y ver como es la bola de little/big endian)
+
+Obtener el número de bytes transferidos:
+
+        +----+
+        | 10 |
+        +----+
+        | -  |
+        +----+
+
+Respuestas:
+        +--------+------+------+
+        | STATUS | RLEN | RESP |
+        +--------+------+------+
+        |   1    |  1   | RLEN |
+        +--------+------+------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+- RLEN: Cantidad de bytes de la respuesta
+- RESP: Cantidad de bytes transferidos expresada como una cadena de caracteres
+
+
+Obetener una lista de accesos por usuario para ver el historial de conexiones y la IP origen de las mismas:
+
+Generalidades: Se indica que versión de IP se quiere obtener (IPV4, IPV6 o ambas)
+
+        +----+------+------+-----+
+        | 11 | ULEN | USER | VER |
+        +----+------+------+-----+
+        | -  |  1   | ULEN |  1  |
+        +----+------+------+-----+
+
+Casos:
+Default:
+        +----+------+------+---+
+        | 11 | ULEN | USER | 0 |
+        +----+------+------+---+
+        | -  |  1   | ULEN | - |
+        +----+------+------+---+
+
+Responde con todas las versiones de IP mezcladas (IPV4 e IPV6)
+Respuestas:
+        +--------+------+-----------+
+        | STATUS | RLEN |   RESP    |
+        +--------+------+-----------+
+        |   1    |  1   | 16 * RLEN |
+        +--------+------+-----------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+- RLEN: Cantidad de IPs de la respuesta
+- RESP: Lista de IPs de las conexiones (En caso de IPV4, CRLF terminated)
+(A chequear)
+
+IPV4:
+        +----+------+------+---+
+        | 11 | ULEN | USER | 4 |
+        +----+------+------+---+
+        | -  |  1   | ULEN | - |
+        +----+------+------+---+
+
+Respuestas:
+        +--------+------+----------+
+        | STATUS | RLEN |   RESP   |
+        +--------+------+----------+
+        |   1    |  1   | 4 * RLEN |
+        +--------+------+----------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+- RLEN: Cantidad de IPs de la respuesta
+- RESP: Lista de IPs de las conexiones.
+
+IPV6:
+        +----+------+------+---+
+        | 11 | ULEN | USER | 6 |
+        +----+------+------+---+
+        | -  |  1   | ULEN | - |
+        +----+------+------+---+
+
+Respuestas:
+        +--------+------+-----------+
+        | STATUS | RLEN |   RESP    |
+        +--------+------+-----------+
+        |   1    |  1   | 16 * RLEN |
+        +--------+------+-----------+
+
+- Status:
+    - 0: OK
+    - 1: Error
+- RLEN: Cantidad de IPs de la respuesta
+- RESP: Lista de IPs de las conexiones.
