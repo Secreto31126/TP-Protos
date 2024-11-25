@@ -492,7 +492,6 @@ static ON_MESSAGE_RESULT handle_list_all(Connection *client, int client_fd)
 
     asend(client_fd, buffer, POP_MIN(len));
 
-    size_t i = 1;
     for (size_t j = 0; j < client->mail_count; j++)
     {
         Mailfile mail = client->mails[j];
@@ -503,7 +502,7 @@ static ON_MESSAGE_RESULT handle_list_all(Connection *client, int client_fd)
         }
 
         char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
-        size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, "%zu %zu" POP3_ENTER, i++, mail.size);
+        size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, "%zu %zu" POP3_ENTER, j + 1, mail.size);
 
         asend(client_fd, buffer, POP_MIN(len));
     }
