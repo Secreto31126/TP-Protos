@@ -1142,9 +1142,18 @@ static ON_MESSAGE_RESULT handle_manager_state(Connection *client, int client_fd,
         char *username = cmds + sizeof("ADD");
         char *password = username + strlen(username) + 1;
 
+        bool edited = !!get_user(username);
+
         if (set_user(username, password))
         {
             char response[] = OK_RESPONSE(" Failed to add user");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        if (edited)
+        {
+            char response[] = OK_RESPONSE(" User updated");
             asend(client_fd, response, sizeof(response) - 1);
             return KEEP_CONNECTION_OPEN;
         }
