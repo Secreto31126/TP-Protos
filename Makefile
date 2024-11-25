@@ -1,4 +1,4 @@
-all: before server bytestuff
+all: before server bytestuff manager
 
 before:
 	@echo
@@ -13,8 +13,11 @@ server:
 bytestuff:
 	make all -C src/bytestuff
 
+manager:
+	make all -C src/manager
+
 clean:
 	make clean -C src/server
 	make clean -C src/bytestuff
 
-.PHONY: all server clean
+.PHONY: all server bytestuff manager clean
