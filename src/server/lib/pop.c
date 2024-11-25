@@ -723,6 +723,103 @@ static size_t handle_rset(Connection *client, char **response)
 }
 
 /**
+ * @brief Handles a UIDL command with arguments.
+ *
+ * @note Doesn't validate the message number is in range.
+ * @note The response must be freed by the caller.
+ *
+ * @param client The client connection.
+ * @param msg The message number to retrieve (1-indexed).
+ * @param response The response to send back to the client.
+ * @return size_t The length of the response.
+ */
+static size_t handle_uidl(Connection *client, size_t msg, char **response)
+{
+    Mailfile mail = client->mails[msg - 1];
+
+    if (!mail.uid[0])
+    {
+        *response = ERR_RESPONSE(" No such message");
+        return sizeof(ERR_RESPONSE(" No such message")) - 1;
+    }
+
+    if (mail.deleted)
+    {
+        *response = ERR_RESPONSE(" Message already deleted");
+        return sizeof(ERR_RESPONSE(" Message already deleted")) - 1;
+    }
+
+    char *splitter = strchr(mail.uid, ':');
+
+    if (!splitter || mail.uid == splitter)
+    {
+        *response = ERR_RESPONSE(" Internal error");
+        return sizeof(ERR_RESPONSE(" Internal error")) - 1;
+    }
+
+    size_t index = splitter - mail.uid;
+
+    char *uid = strdup(mail.uid);
+    uid[index] = 0;
+
+    char *buffer = malloc(MAX_POP3_RESPONSE_LENGTH + 1);
+    size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %zu %.70s"), msg, uid);
+
+    free(uid);
+
+    *response = buffer;
+    return POP_MIN(len);
+}
+
+/**
+ * @brief Handles a UIDL command with arguments.
+ *
+ * @note Multi-line response, handles the sends internally.
+ *
+ * @param client The client connection.
+ * @param response The response to send back to the client.
+ * @return size_t The length of the response.
+ */
+static ON_MESSAGE_RESULT handle_uidl_all(Connection *client, int client_fd)
+{
+    asend(client_fd, OK_RESPONSE(), sizeof(OK_RESPONSE()) - 1);
+
+    for (size_t i = 0; i < client->mail_count; i++)
+    {
+        Mailfile mail = client->mails[i];
+
+        if (mail.deleted)
+        {
+            continue;
+        }
+
+        char *splitter = strchr(mail.uid, ':');
+
+        if (!splitter || mail.uid == splitter)
+        {
+            LOG("Unexpected filename format: %s", mail.uid);
+            continue;
+        }
+
+        size_t index = splitter - mail.uid;
+
+        char *uid = strdup(mail.uid);
+        uid[index] = 0;
+
+        char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
+        size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, "%zu %.70s" POP3_ENTER, i + 1, uid);
+
+        free(uid);
+
+        asend(client_fd, buffer, POP_MIN(len));
+    }
+
+    asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
+
+    return KEEP_CONNECTION_OPEN;
+}
+
+/**
  * @brief Handles a message in the authorization state of a POP3 connection.
  *
  * @param client The client connection.
@@ -915,6 +1012,38 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
         }
 
         return handle_retr(client, msg, client_fd);
+    }
+
+    if (!strcmp(cmds, "UIDL"))
+    {
+        if (argc > 1)
+        {
+            char response[] = ERR_RESPONSE(" Invalid number of arguments");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        if (!argc)
+        {
+            return handle_uidl_all(client, client_fd);
+        }
+
+        char *num = cmds + sizeof("LIST");
+
+        char *err;
+        size_t msg = strtoull(num, &err, 10);
+
+        if (*err || !(0 < msg && msg <= client->mail_count) || !isdigit(*num))
+        {
+            char response[] = ERR_RESPONSE(" Invalid message number");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        size_t len = handle_uidl(client, msg, &buffer);
+        asend(client_fd, buffer, len);
+        free(buffer);
+        return KEEP_CONNECTION_OPEN;
     }
 
     char response[] = ERR_RESPONSE(" Invalid command");
