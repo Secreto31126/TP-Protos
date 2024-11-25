@@ -224,7 +224,17 @@ void set_maildir(const char *new_maildir)
 
 void set_transformer(const char *transformer)
 {
-    //TODO
+    if(_transformer == transformer)
+    {
+        return;
+    }
+
+    if (_transformer && _transformer != _default_transformer)
+    {
+        free(_transformer);
+    }
+
+    _transformer = strdup(transformer);
 }
 
 char set_user(const char *username, const char *password)
