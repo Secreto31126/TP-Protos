@@ -1047,6 +1047,15 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
     return KEEP_CONNECTION_OPEN;
 }
 
+/**
+ * @brief Handles a message in the manager state of a Manager connection.
+ * 
+ * @param client The client connection.
+ * @param client_fd The client file descriptor.
+ * @param body The message body.
+ * @param length The message length.
+ * @return ON_MESSAGE_RESULT The result of the message handling.
+ */
 static ON_MESSAGE_RESULT handle_manager_state(Connection *client, int client_fd, char *body, size_t length)
 {
     char cmds[length + 1];
