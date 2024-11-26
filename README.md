@@ -36,13 +36,13 @@ Las flags de ejecución son las siguientes:
 | Flag |  Descripcion | 
 |----| -------------------------------------------------------------------------------------------------------------------------- |
 | -h | Imprime la ayuda y termina. |
-| -l <POP3 addr> | Establece la dirección donde servirá el servidor POP. Por defecto escucha en todas las interfaces. |
-| -L <conf addr> | Establece la dirección donde servirá el servicio de management. Por defecto escucha únicamente en loopback. |
-| -p <POP3 port> | Puerto entrante para conexiones POP3.  Por defecto el valor es 8080. |
-| -P <conf port> | Puerto entrante para conexiones de configuración. Por defecto es 4321 |
-| -u <name>:<pass> | Listado de usuarios y contraseñas que puede usar el servidor. El valor máximo es 10. |
-| -t <cmd> | Establece un filtro/transformador de salida. La transformación por defecto es `cat`. |
-| -d <dir> | Especifica la carpeta donde residen los Maildirs. Por defecto es `./dist/mail` |
+| -l \<POP3 addr\> | Establece la dirección donde servirá el servidor POP. Por defecto escucha en todas las interfaces. |
+| -L \<conf addr\> | Establece la dirección donde servirá el servicio de management. Por defecto escucha únicamente en loopback. |
+| -p \<POP3 port\> | Puerto entrante para conexiones POP3.  Por defecto el valor es 8080. |
+| -P \<conf port\> | Puerto entrante para conexiones de configuración. Por defecto es 4321 |
+| -u \<name\>:\<pass\> | Listado de usuarios y contraseñas que puede usar el servidor. El valor máximo es 10. |
+| -t \<cmd\> | Establece un filtro/transformador de salida. La transformación por defecto es `cat`. |
+| -d \<dir\> | Especifica la carpeta donde residen los Maildirs. Por defecto es `./dist/mail` |
 | -v | Imprime información sobre la versión versión y termina. |
 
 
