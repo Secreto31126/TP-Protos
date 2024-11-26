@@ -1345,6 +1345,7 @@ static ON_MESSAGE_RESULT handle_manager_state(Connection *client, int client_fd,
         size_t count = get_user_logs_count(_stats, user->username);
         do
         {
+            memset(logs_buffer, 0, sizeof(logs_buffer));
             get_user_logs(_stats, user->username, logs_buffer, 64);
 
             for (size_t j = 0; j < 64 && logs_buffer[j].username; j++)
