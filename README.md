@@ -1,66 +1,67 @@
 # Protocolos de Comunicación - TPE
 
-## Autores
+## Authors
 
 - [Lucas Lonegro Gurfinkel](https://github.com/LucasLonegro)
 - [Tobías Noceda](https://github.com/Tobias-Noceda)
 - [Tomás Raiti](https://github.com/Secreto31126)
 - [Franco Ghigliani](https://github.com/Franco-A-Ghigliani)
 
-## Proyecto
+## Project
 
-Implementación de un servidor para el protocolo pop3, diseño de un protocolo propio para administración del servidor pop3 y una aplicación de interfaz con el administrador.
+Implementation of a server module for the POP3 protocol, design and implementation of a bespoke protocol for the administration of this module and a companion interface for the latter implementation.
 
+## Compiling
 
-## Compilación
-
-La compilación se realiza en el directorio raíz con el comando:
+Compiling is done in the project root with the command:
 
 ```bash
 make all DEBUG=0
 ```
 
-## Ejecución
+## Execution
 
-En el directorio ```./dist```, la compilación genera los archivos ejecutables:
+In the ```./dist``` directory, compilation generates the following executables:
 
 * `server`
 * `manager`
 
-Para ejecutar los mismos:
+To execute them from the project root:
+
 ```bash
 ./dist/server <flags>
 ```
-Las flags de ejecución son las siguientes:
 
-| Flag |  Descripcion | 
+Execution flags are as follows
+
+| Flag |  Description | 
 |----| -------------------------------------------------------------------------------------------------------------------------- |
-| -h | Imprime la ayuda y termina. |
-| -l \<POP3 addr\> | Establece la dirección donde servirá el servidor POP. Por defecto escucha en todas las interfaces. |
-| -L \<conf addr\> | Establece la dirección donde servirá el servicio de management. Por defecto escucha únicamente en loopback. |
-| -p \<POP3 port\> | Puerto entrante para conexiones POP3.  Por defecto el valor es 8080. |
-| -P \<conf port\> | Puerto entrante para conexiones de configuración. Por defecto es 4321 |
-| -u \<name\>:\<pass\> | Listado de usuarios y contraseñas que puede usar el servidor. El valor máximo es 10. |
-| -a \<name\>:\<pass\> | Usuario y contraseña de usuario que puede usar el servidor de administración. El valor máximo es 4. |
-| -t \<cmd\> | Establece un filtro/transformador de salida. La transformación por defecto es `cat`. |
-| -d \<dir\> | Especifica la carpeta donde residen los Maildirs. Por defecto es `./dist/mail` |
-| -v | Imprime información sobre la versión versión y termina. |
+| -h | Prints the help menu and terminates. |
+| -l \<POP3 addr\> | Sets the address to serve the POP3 server. By default listens on all interfaces. |
+| -L \<conf addr\> | Sets the address to serve the management service. By defect listens on the loopback interface. |
+| -p \<POP3 port\> | Sets the incoming port for POP3 connections. By default the port is 110. |
+| -P \<conf port\> | Sets the incoming port for management connectinos. By default the port is 4321 |
+| -u \<name\>:\<pass\> | List of users and passwords recognized by the server. The maximum value is 10. |
+| -a \<name\>:\<pass\> | List of admin users and passwords recognized by the server. The maximum is 4. |
+| -t \<cmd\> | Sets a transformer/filter program for output. The default program is `cat`. |
+| -d \<dir\> | Specifies the directory in which Maildirs are located. The default value is `./dist/mail` |
+| -v | Prints version information and terminates. |
 
 
 ```bash
-./dist/manager <comando>
+./dist/manager <command>
 ```
 
-Las flags de ejecución son las siguientes:
+Execution flags are as follows
 
-| Flag |  Descripcion | 
+| Flag |  Description | 
 |----| -------------------------------------------------------------------------------------------------------------------------- |
-| -P | Establece el puerto en que se encuentra el servidor de administración |
-| -L | Establece la dirección en que se encuentra el servidor de administración |
+| -P | Sets the port for the maangement service. Default value is 4321. |
+| -L | Sets the address for the management service. Default values is the loopback address. |
 
-## Limpieza
+## Cleaning
 
-La limpieza de los archivos generados se realiza con el comando:
+Build files can be cleaned with the command:
 
 ```bash
 make clean
