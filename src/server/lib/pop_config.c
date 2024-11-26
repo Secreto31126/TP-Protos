@@ -78,9 +78,10 @@ char *get_transformer()
     return _transformer;
 }
 
-User *get_users_arr()
+size_t get_users_arr(const User **users)
 {
-    return _users;
+    *users = _users;
+    return _user_count;
 }
 
 User *get_user(const char *username)

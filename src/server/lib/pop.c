@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <log_reader.h>
 #include <logger.h>
 #include <magic.h>
 #include <management_config.h>
@@ -96,13 +97,21 @@ static const char *stuffer;
  * @brief The server file descriptor.
  */
 static int manager_server_fd = -1;
+/**
+ * @brief The statistics manager for logging.
+ */
+static statistics_manager *_stats;
+
+static char *success_login_log = "Logged in";
+static char *failed_login_log = "Failed loggin";
 
 static int active_managers = 0;
 
-void pop_init(const char *bytestuffer, const int manager_fd)
+void pop_init(const char *bytestuffer, const int manager_fd, statistics_manager *stats)
 {
     stuffer = bytestuffer ? bytestuffer : "./dist/bytestuff";
     manager_server_fd = manager_fd;
+    _stats = stats;
 }
 
 void pop_stop()
@@ -448,7 +457,7 @@ static size_t handle_noop(char **response)
 
 /**
  * @brief Handles a STAT command.
- * 
+ *
  * @note The response must be freed by the caller.
  *
  * @param client The client connection.
@@ -734,7 +743,7 @@ static size_t handle_dele(Connection *client, size_t msg, char **response)
 
 /**
  * @brief Handles a RSET command.
- * 
+ *
  * @param client The client connection.
  * @param response The response to send back to the client.
  * @return size_t The length of the response.
@@ -855,9 +864,10 @@ static ON_MESSAGE_RESULT handle_uidl_all(Connection *client, int client_fd)
  * @param body The message body.
  * @param length The message length.
  * @param is_manager If the client is a manager.
+ * @param ip The client IP address.
  * @return ON_MESSAGE_RESULT The result of the message handling.
  */
-static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int client_fd, char *body, size_t length, bool is_manager)
+static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int client_fd, char *body, size_t length, bool is_manager, const char *ip)
 {
     char cmds[length + 1];
     memcpy(cmds, body, length);
@@ -884,8 +894,23 @@ static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int 
                 return KEEP_CONNECTION_OPEN;
             }
 
+            bool before = client->authenticated;
             // Spaces are accepted as part of the password, so don't use the parsed args
             size_t len = handle_pass(client, body + 5, &buffer, is_manager);
+            bool after = client->authenticated;
+
+            // Discard the const
+            char *ip_cpy = strdup(ip);
+            if (before != after)
+            {
+                log_other(_stats, client->username, ip_cpy, log_now(), success_login_log);
+            }
+            else
+            {
+                log_other(_stats, client->username, ip_cpy, log_now(), failed_login_log);
+            }
+            free(ip_cpy);
+
             asend(client_fd, buffer, len);
             return KEEP_CONNECTION_OPEN;
         }
@@ -1082,7 +1107,7 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
 
 /**
  * @brief Handles a message in the manager state of a Manager connection.
- * 
+ *
  * @param client The client connection.
  * @param client_fd The client file descriptor.
  * @param body The message body.
@@ -1219,6 +1244,117 @@ static ON_MESSAGE_RESULT handle_manager_state(Connection *client, int client_fd,
         return KEEP_CONNECTION_OPEN;
     }
 
+    if (!strcmp(cmds, "LIST"))
+    {
+        if (argc > 1)
+        {
+            char response[] = ERR_RESPONSE(" Invalid number of arguments");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        if (argc == 1)
+        {
+            char *username = cmds + sizeof("LIST");
+
+            User *user = get_user(username);
+            if (!user)
+            {
+                char response[] = ERR_RESPONSE(" User not found");
+                asend(client_fd, response, sizeof(response) - 1);
+                return KEEP_CONNECTION_OPEN;
+            }
+
+            size_t count = get_user_logs_count(_stats, user->username);
+
+            char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
+            size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %s %zu"), user->username, count);
+
+            asend(client_fd, buffer, len);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        const User *users;
+        size_t count = get_users_arr(&users);
+
+        asend(client_fd, OK_RESPONSE(), sizeof(OK_RESPONSE()) - 1);
+
+        for (size_t i = 0; i < count; i++)
+        {
+            char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
+            size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, "%s" POP3_ENTER, users[i].username);
+            asend(client_fd, buffer, len);
+        }
+
+        asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    if (!strcmp(cmds, "STAT"))
+    {
+        char response[] = OK_RESPONSE();
+        asend(client_fd, response, sizeof(response) - 1);
+
+        char buffer[2048];
+        size_t len = snprintf(
+            buffer,
+            sizeof(buffer),
+            "Total connections:\t\t%zu" POP3_ENTER "Historical maximum traffic:\t%zu" POP3_ENTER "Total transferred bytes:\t%zu" POP3_ENTER,
+            read_historic_connections(_stats),
+            read_max_current_connections(_stats),
+            read_bytes_transferred(_stats));
+
+        asend(client_fd, buffer, len);
+        asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    if (!strcmp(cmds, "LOGS"))
+    {
+        if (argc != 1)
+        {
+            char response[] = ERR_RESPONSE(" Invalid number of arguments");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        char *username = cmds + sizeof("LOGS");
+
+        User *user = get_user(username);
+        if (!user)
+        {
+            char response[] = ERR_RESPONSE(" User not found");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        char buffer[] = OK_RESPONSE();
+        asend(client_fd, buffer, sizeof(buffer) - 1);
+
+        pop_log logs_buffer[64];
+        size_t count = get_user_logs_count(_stats, user->username);
+        do
+        {
+            get_user_logs(_stats, user->username, logs_buffer, 64);
+
+            for (size_t j = 0; j < 64 && logs_buffer[j].username; j++)
+            {
+                char *str = parse_log(logs_buffer[j], NULL);
+                asend(client_fd, str, strlen(str));
+                asend(client_fd, POP3_ENTER, sizeof(POP3_ENTER) - 1);
+                free(str);
+            }
+
+            if (count > 64)
+            {
+                count -= 64;
+            }
+        } while (count > 64);
+
+        asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
+        return KEEP_CONNECTION_OPEN;
+    }
+
     char response[] = ERR_RESPONSE(" Invalid command");
     asend(client_fd, response, sizeof(response) - 1);
     return KEEP_CONNECTION_OPEN;
@@ -1234,7 +1370,7 @@ static ON_MESSAGE_RESULT handle_manager_state(Connection *client, int client_fd,
  * @param is_manager If the client is a manager.
  * @return ON_MESSAGE_RESULT The result of the message handling.
  */
-static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd, char *cmd, size_t length, bool is_manager)
+static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd, char *cmd, size_t length, bool is_manager, const char *ip)
 {
     // If the client is already on the UPDATE state, ignore the message
     if (client->update)
@@ -1245,7 +1381,7 @@ static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd
     // Authorization state
     if (!client->authenticated)
     {
-        return handle_pop_authorization_state(client, client_fd, cmd, length, is_manager);
+        return handle_pop_authorization_state(client, client_fd, cmd, length, is_manager, ip);
     }
 
     if (is_manager)
@@ -1283,7 +1419,7 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in6 address,
     return KEEP_CONNECTION_OPEN;
 }
 
-ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const int server_fd)
+ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const int server_fd, const char *ip)
 {
     bool is_manager = server_fd == manager_server_fd;
 
@@ -1312,7 +1448,7 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
                 data = client->buffer;
             }
 
-            ON_MESSAGE_RESULT result = handle_pop_single_cmd(client, client_fd, data, strlen(data), is_manager);
+            ON_MESSAGE_RESULT result = handle_pop_single_cmd(client, client_fd, data, strlen(data), is_manager, ip);
 
             client->buffer[0] = 0;
 

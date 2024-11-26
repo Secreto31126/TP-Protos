@@ -15,15 +15,15 @@
     close(fds[i].fd);              \
     fds[i--] = fds[--nfds];
 
-#define NOTIFY_CLOSE(fds, pending, fd, on_close, status)                    \
-    if (!pending[fd].closed)                                                \
-    {                                                                       \
-        fds[i].events &= ~POLLIN;                                           \
-        on_close(fd, status, pending[fd].server_fd);                        \
-        char NOTIFY_CLOSE__ipv6_buffer[40];                                 \
-        ipv6_to_str_unexpanded(NOTIFY_CLOSE__ipv6_buffer, &pending[fd].ip); \
-        log_disconnect(stats, NOTIFY_CLOSE__ipv6_buffer, log_now());        \
-        pending[fd].closed = true;                                          \
+#define NOTIFY_CLOSE(fds, pending, fd, on_close, status)                                        \
+    if (!pending[fd].closed)                                                                    \
+    {                                                                                           \
+        fds[i].events &= ~POLLIN;                                                               \
+        on_close(fd, status, pending[fd].server_fd);                                            \
+        char NOTIFY_CLOSE__ipv6_buffer[40];                                                     \
+        ipv6_to_str_unexpanded(NOTIFY_CLOSE__ipv6_buffer, &pending[fd].ip);                     \
+        log_disconnect(stats, NOTIFY_CLOSE__ipv6_buffer, NOTIFY_CLOSE__ipv6_buffer, log_now()); \
+        pending[fd].closed = true;                                                              \
     }
 
 typedef struct DataList
@@ -133,7 +133,7 @@ static void iasend(DataList *list, int client_fd, const char *message, size_t le
  * @return CLOSE_CONNECTION to close the connection (an ESC node was found)
  * @return CONNECTION_ERROR if an error happened sending the message
  */
-static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_index, bool *empty_node);
+static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_index, bool *empty_node, statistics_manager *stats);
 /**
  * @brief Sends a buffer of a file to a client
  *
@@ -181,8 +181,6 @@ static int servers_count = 0;
 
 // Array to hold pending messages or files
 static DataHeader pending[MAGIC_NUMBER];
-
-static statistics_manager *stats = NULL;
 
 int start_server(struct sockaddr_in6 *address)
 {
@@ -268,15 +266,13 @@ static void noop()
 {
 }
 
-int server_loop(const bool *done, connection_event on_connection, message_event on_message, close_event on_close)
+int server_loop(const bool *done, connection_event on_connection, message_event on_message, close_event on_close, statistics_manager *stats)
 {
     struct sockaddr_in6 address;
     int new_socket, addrlen = sizeof(address);
 
     on_connection = on_connection ? on_connection : (connection_event)keep_alive_noop;
     on_close = on_close ? on_close : (close_event)noop;
-
-    stats = create_statistics_manager();
 
     while (!*done)
     {
@@ -294,7 +290,6 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
             }
 
             perror("poll error");
-            destroy_statistics_manager(stats);
             return EXIT_FAILURE;
         }
 
@@ -310,7 +305,6 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
                 if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0)
                 {
                     perror("accept");
-                    destroy_statistics_manager(stats);
                     return EXIT_FAILURE;
                 }
 
@@ -326,7 +320,7 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
 
                 LOG("New connection: socket fd %s:%d\n", ip_str, new_socket);
 
-                log_connect(stats, ip_str, log_now());
+                log_connect(stats, ip_str, ip_str, log_now());
 
                 // Add new socket to fds array
                 fds[nfds].fd = new_socket;
@@ -435,7 +429,10 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
 
                     LOG("Received from client %d (%d bytes): %.512s\n", fd, len, buffer);
 
-                    ON_MESSAGE_RESULT result = on_message(fd, buffer, len, pending[fd].server_fd);
+                    char ip[40];
+                    ipv6_to_str_unexpanded(ip, &pending[fd].ip);
+
+                    ON_MESSAGE_RESULT result = on_message(fd, buffer, len, pending[fd].server_fd, ip);
 
                     if (result != KEEP_CONNECTION_OPEN)
                     {
@@ -470,7 +467,7 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
                     continue;
                 }
 
-                ON_MESSAGE_RESULT result = time_to_send(&header->messages, fd, i, NULL);
+                ON_MESSAGE_RESULT result = time_to_send(&header->messages, fd, i, NULL, stats);
 
                 if (result != KEEP_CONNECTION_OPEN)
                 {
@@ -493,7 +490,6 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
         sem_post(&fds_mutex);
     }
 
-    destroy_statistics_manager(stats);
     return EXIT_SUCCESS;
 }
 
@@ -502,7 +498,7 @@ void asend(int client_fd, const char *message, size_t length)
     iasend(&pending[client_fd].messages, client_fd, message, length);
 }
 
-static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_index, bool *empty_node)
+static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_index, bool *empty_node, statistics_manager *stats)
 {
     Data *data = list->first;
 
@@ -529,7 +525,7 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
     if (data->type == MESSAGE_SPLITTER)
     {
         bool empty_splitter = false;
-        ON_MESSAGE_RESULT result = time_to_send(&data->splitter.messages, client_fd, fds_index, &empty_splitter);
+        ON_MESSAGE_RESULT result = time_to_send(&data->splitter.messages, client_fd, fds_index, &empty_splitter, stats);
 
         if (empty_splitter && data->splitter.fd < 0)
         {
@@ -567,7 +563,7 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
 
             if (list->first)
             {
-                return time_to_send(list, client_fd, fds_index, empty_node);
+                return time_to_send(list, client_fd, fds_index, empty_node, stats);
             }
 
             list->last = NULL;
@@ -601,6 +597,10 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
         list->last = NULL;
         return CONNECTION_ERROR;
     }
+
+    char ip[40];
+    ipv6_to_str_unexpanded(ip, &pending[client_fd].ip);
+    log_bytes_transferred(stats, ip, ip, sent, log_now());
 
     if (sent < length)
     {

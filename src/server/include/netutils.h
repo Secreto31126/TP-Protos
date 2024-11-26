@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <statistics.h>
 
 #define MAX_CLIENTS 5
 #define MAX_PENDING_CLIENTS 10
@@ -35,11 +36,12 @@ typedef ON_MESSAGE_RESULT (*connection_event)(const int client_fd, struct sockad
  * @param body The message body.
  * @param length The message length.
  * @param server_fd The server that received the message.
+ * @param ip The client IP address.
  * @return KEEP_CONNECTION_OPEN to keep the connection open.
  * @return CLOSE_CONNECTION to close.
  * @return CONNECTION_ERROR to save to stats and close.
  */
-typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body, size_t length, const int server_fd);
+typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body, size_t length, const int server_fd, const char *ip);
 
 /**
  * @brief Handle a close event
@@ -87,9 +89,10 @@ void add_server(int server_fd, struct sockaddr_in6 *address);
  * @param on_connection The callback function to handle incoming connections, it may be NULL.
  * @param on_message The callback function to handle incoming messages.
  * @param on_close The callback function to handle closed connections, it may be NULL.
+ * @param stats The statistics manager for logging.
  * @return int The exit status.
  */
-int server_loop(const bool *done, connection_event on_connection, message_event on_message, close_event on_close);
+int server_loop(const bool *done, connection_event on_connection, message_event on_message, close_event on_close, statistics_manager *stats);
 
 /**
  * @brief Asynchronously send a package to a client.

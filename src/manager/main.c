@@ -138,7 +138,9 @@ int application_loop(int sockfd)
 
         if (fds[0].revents & POLLIN)
         {
-            fgets(buffer, BLOCK, stdin);
+            if (!fgets(buffer, BLOCK, stdin))
+                break;
+
             char send_buffer[BLOCK * 2] = {0};
             parse_message(buffer, send_buffer);
             // Send message to the server

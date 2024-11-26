@@ -17,7 +17,7 @@ char *get_maildir();
 char *get_version();
 struct sockaddr_in6 get_pop_adport();
 char *get_transformer();
-User *get_users_arr();
+size_t get_users_arr(const User **users);
 User *get_user(const char *username);
 
 char set_pop_address(const char *new_addr);

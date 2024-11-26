@@ -53,9 +53,13 @@ int main(int argc, const char *argv[])
 
     LOG("Manager listening on port %d...\n", ntohs(address_manager.sin6_port));
 
-    pop_init(NULL, manager_fd);
-    int r = server_loop(&done, handle_pop_connect, handle_pop_message, handle_pop_close);
+    statistics_manager *stats = create_statistics_manager();
+
+    pop_init(NULL, manager_fd, stats);
+    int r = server_loop(&done, handle_pop_connect, handle_pop_message, handle_pop_close, stats);
     pop_stop();
+
+    destroy_statistics_manager(stats);
 
     return r;
 }

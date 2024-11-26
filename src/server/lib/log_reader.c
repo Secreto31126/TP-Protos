@@ -53,18 +53,19 @@ char *parse_log(pop_log l, data_parser parser)
         }
         free(data_s);
     }
+    else
     {
         uint64_t len = strlen(time_s) + strlen(type_s) + strlen(l.username) + strlen(l.ip) + MAX_FORMAT_SIZE;
         if (l.ip == NULL || !strcmp(l.ip, l.username))
         {
             char *__restrict__ __format = "%s: %s; %s.";
-            s = aux_parse_log(len, __format, time_s, type_s, l.username);
+            s = aux_parse_log(len + 1, __format, time_s, type_s, l.username);
         }
         else
         {
 
             char *__restrict__ __format = "%s: %s; %s - %s.";
-            s = aux_parse_log(len, __format, time_s, type_s, l.username, l.ip);
+            s = aux_parse_log(len + 1, __format, time_s, type_s, l.username, l.ip);
         }
     }
     return s;

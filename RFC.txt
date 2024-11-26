@@ -51,8 +51,8 @@ Table of Contents
    Messages providing more information MAY be appended to the end
    of the response. 
 
-   All responses MUST NOT exceed 512 characters in total and MUST
-   be terminated with CRLF.
+   Some responses MIGHT be multi-line, which are terminated by a
+   CRLF.CRLF byte sequence.
 
 
                 Mail Server Management Protocol                 [Page 1]
@@ -92,7 +92,7 @@ Table of Contents
         -ERR Invalid credentials
 
    Example:
-        S: +OK MSMP1 server ready
+        S: +OK MSMP server ready
         C: USER user1
         S: +OK
         C: PASS pass1
@@ -185,15 +185,17 @@ Table of Contents
 
    Possible responses:
         +OK
-        <username 1>
-        <username 2>
-        ...
+        S: <username 1>
+        S: <username 2>
+        S: ...
+        S: .
 
    Example:
         C: LIST
         S: +OK
         S: user1
         S: user1
+        S: .
 
    The client MAY add a parameter in order to obtain a specific user:
    
@@ -204,14 +206,12 @@ Table of Contents
    negative response.
 
    Possible responses:
-        +OK
-        <username> <log count>
+        +OK <username> <log count>
         -ERR User does not exist
 
    Example:
         C: LIST user1
-        S: +OK
-        S: user1 69 logs
+        S: +OK user1 69
 
 
                 Mail Server Management Protocol                 [Page 4]
@@ -298,6 +298,7 @@ Table of Contents
         Total connections:              <connection count>
         Historical maximum traffic:     <max traffic>
         Total transferred bytes:        <total bytes>
+        .
 
    Example:
         C: STAT
@@ -305,6 +306,7 @@ Table of Contents
         S: Total connections:              156
         S: Historical maximum traffic:     201
         S: Total transferred bytes:        640028
+        S: .
 
 10. LOGS
 
@@ -319,6 +321,7 @@ Table of Contents
    Possible responses:
         +OK
         <log entries>
+        .
         -ERR Invalid user
 
    Example:
@@ -326,6 +329,7 @@ Table of Contents
         S: +OK
         S: 2023-10-01 12:00:00 IP: 192.168.1.1
         S: 2023-10-02 14:30:00 IP: 192.168.1.2
+        S: .
 
 11. Conclusion
 

@@ -2,6 +2,7 @@
 #define POP_H
 
 #include <netutils.h>
+#include <statistics.h>
 
 #define MAX_POP3_ARG_LENGTH 40
 #define MAX_USERNAME_LENGTH MAX_POP3_ARG_LENGTH
@@ -15,8 +16,9 @@
  *
  * @param bytestuffer The path to the bytestuffer program, defaults to "./dist/bytestuff".
  * @param manager_fd The file descriptor of the manager server.
+ * @param stats The statistics manager for logging.
  */
-void pop_init(const char *bytestuffer, const int manager_fd);
+void pop_init(const char *bytestuffer, const int manager_fd, statistics_manager *stats);
 /**
  * @brief Finalize the POP3 server.
  */
@@ -43,9 +45,10 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in6 address,
  * @param body The message body.
  * @param length The message length.
  * @param server_fd The server that received the message.
+ * @param ip The client IP address.
  * @return ON_MESSAGE_RESULT The result of the message handling.
  */
-ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const int server_fd);
+ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const int server_fd, const char *ip);
 
 /**
  * @brief Free the resources associated with a client connection.
