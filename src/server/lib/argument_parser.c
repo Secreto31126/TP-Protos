@@ -122,7 +122,7 @@ static void printUsage(FILE *fd)
             "   -a <name>:<pass> Usuario y contraseña de usuario que puede usar el servidor de administración. Hasta 4.\n"
             "   -v               Imprime información sobre la versión versión y termina.\n"
             "   -d <dir>         Carpeta donde residen los Maildirs\n"
-            "   -t <cmd>         Comando para aplicar transformaciones (WIP)\n"
+            "   -t <cmd>         Comando para aplicar transformaciones\n"
             "\n",
             _progname);
 }
