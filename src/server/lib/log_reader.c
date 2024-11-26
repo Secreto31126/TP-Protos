@@ -43,10 +43,10 @@ char *parse_log(log l, data_parser parser)
     {
         uint64_t len = strlen(time_s) + strlen(type_s) + strlen(l.username) + strlen(l.ip) + strlen(data_s) + MAX_FORMAT_SIZE;
         char *s;
-        if (!strcmp(l.ip, l.username))
+        if (l.ip == NULL || !strcmp(l.ip, l.username))
         {
             char *__restrict__ __format = "%s: %s; %s. INFO: %s.";
-            s = aux_parse_log(len, __format, time_s, type_s, l.ip, data_s);
+            s = aux_parse_log(len, __format, time_s, type_s, l.username, data_s);
         }
         else
         {
@@ -57,10 +57,10 @@ char *parse_log(log l, data_parser parser)
     }
     {
         uint64_t len = strlen(time_s) + strlen(type_s) + strlen(l.username) + strlen(l.ip) + MAX_FORMAT_SIZE;
-        if (!strcmp(l.ip, l.username))
+        if (l.ip == NULL || !strcmp(l.ip, l.username))
         {
             char *__restrict__ __format = "%s: %s; %s.";
-            s = aux_parse_log(len, __format, time_s, type_s, l.ip);
+            s = aux_parse_log(len, __format, time_s, type_s, l.username);
         }
         else
         {
