@@ -807,7 +807,7 @@ static ON_MESSAGE_RESULT handle_uidl_all(Connection *client, int client_fd)
 static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int client_fd, char *body, size_t length, bool is_manager)
 {
     char cmds[length + 1];
-    strncpy(cmds, body, length);
+    memcpy(cmds, body, length);
     cmds[length] = 0;
 
     int argc = parse_pop_cmd(cmds);
