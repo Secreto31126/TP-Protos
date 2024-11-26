@@ -222,14 +222,16 @@ Table of Contents
 
 7. SET
 
-   To set a configuration value, the client MUST send the following
-   command:
+   To set a configuration value the client MUST send the following command:
 
         SET <key> <value>
 
    Valid keys MAY be:
         - maildir
         - transformer
+
+   Keys MUST be limited to 40 characters case sensitive.
+   Values MUST be limited to 100 characters and MUST NOT contain spaces.
 
    If the key is valid, the server MUST send a positive response.
    If the key is invalid, the server MUST send a negative response.
