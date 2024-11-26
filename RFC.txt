@@ -1,21 +1,42 @@
-                     Mail Server Management Protocol
-        
+                                                       November 26, 2024
 
-      The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
-      NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and
-      "OPTIONAL" in this document are to be interpreted as described in
-      RFC 2119.
+                RFC for Mail Server Management Protocol
+        
+Terminology
+
+     The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+     NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and
+     "OPTIONAL" in this document are to be interpreted as described in
+     RFC 2119.
+
+Table of Contents
+
+     1. Introduction ................................................. 1
+     2. Generalizations .............................................. 1
+     3. Start of connection .......................................... 2
+          3.1. USER .................................................. 2
+          3.2. PASS .................................................. 2
+     4. ADD .......................................................... 2
+     5. DELE ......................................................... 3
+     6. LIST ......................................................... 3
+          6.1. LIST <username> ....................................... 4
+     7. SET .......................................................... 5
+     8. GET .......................................................... 5
+     9. STAT ......................................................... 6
+     10. LOGS ........................................................ 6
+     11. Conclusion .................................................. 6
 
 1. Introduction
 
-   This document describes a text-based connection oriented protocol for setting 
-   configuration values and retrieving statistics from a POP3 server. The 
-   protocol allows clients to set and get configuration values and obtain server 
-   statistics.
+   This document describes a text-based connection oriented protocol for
+   setting configuration values and retrieving statistics from a POP3
+   server. The protocol allows clients to set and get configuration
+   values and obtain server statistics.
 
 2. Generalizations
 
-   The server SHOULD listen on port 4321
+   Initialy, the server host SHOULD start the MSMP server by listening
+   on TCP port 4321.
 
    All server responses MUST start with:
         
@@ -27,39 +48,51 @@
    
    in case of negative results.
 
-   Messages providing more information MAY be appended to the end of the response. 
+   Messages providing more information MAY be appended to the end
+   of the response. 
 
-   All responses MUST NOT exceed 512 characters in total and MUST be terminated 
-   with CRLF.
+   All responses MUST NOT exceed 512 characters in total and MUST
+   be terminated with CRLF.
+
+
+                Mail Server Management Protocol                 [Page 1]
+
+
+          RFC for Mail Server Management Protocol          November 2024
+
 
 3. Start of connection
    
-   On connection to the server, the server MUST send an initial positive message 
-   indicating the server's version. 
+   On connection to the server, the server MUST send an initial
+   positive message indicating the server's version. 
    
-   In response the client MUST authenticate themselves in the following 2 steps:
+   In response the client MUST authenticate themselves in the
+   following 2 steps:
 
    Firstly, the client sends this message:
         
         USER <username>
 
-   To which the server will always answer positively. And then the client sends:
+   To which the server will always answer positively. And then
+   the client sends:
 
         PASS <password>
 
-   If the user and password are correct, the server MUST send a positive response.
-   If the user does not exist or the password is not correct, the server SHOULD 
-   send a negative response.
+   If the user and password are correct, the server MUST send
+   a positive response.
+   If the user does not exist or the password is not correct,
+   the server SHOULD send a negative response.
 
-        Note: The server SHOULD NOT send different responses to when the user does 
-        not exists and when the password is not correct. This may be a security 
-        vulnerability.
+        Note: The server SHOULD NOT send different responses to
+        when the user does not exists and when the password is
+        not correct. This may be a security vulnerability.
 
    Possible responses:
         +OK Logged in
         -ERR Invalid credentials
 
    Example:
+        S: +OK MSMP1 server ready
         C: USER user1
         S: +OK
         C: PASS pass1
@@ -71,19 +104,28 @@
 
 4. ADD
 
-   In order to add or update a user, the client MUST send the following command:
+   In order to add or update a user, the client MUST send the following
+   command:
 
         ADD <username> <password>
 
-   If the user with the given username already exists, the password SHOULD be 
-   updated.
-   Otherwise, if the user does not exist and there is space for a new user, the 
-   server MUST create the new user and its maildir and send a positive response.
-   If the user does not exist and there is no more space for users, the server 
-   SHOULD send a negative response.
+   If the user with the given username already exists, the password
+   SHOULD be updated.
+   Otherwise, if the user does not exist and there is space for a new
+   user, the server MUST create the new user and its maildir and send a
+   positive response.
+   If the user does not exist and there is no more space for users, the
+   server SHOULD send a negative response.
 
-     Note: usernames SHOULD be limited to 40 characters, as it is the limit set 
-     by POP3.
+
+                Mail Server Management Protocol                 [Page 2]
+
+
+          RFC for Mail Server Management Protocol          November 2024
+
+
+     Note: usernames SHOULD be limited to 40 characters, as it is the
+     limit set by POP3.
 
    Possible responses:
         +OK Added user
@@ -103,21 +145,21 @@
 
 5. DELE
 
-   In order to delete a user, the client MUST send the following command:
+  In order to delete a user, the client MUST send the following command:
 
         DELE <username>
 
-   If the user with the given username exists, the server MUST send a positive 
-   response.
-   Otherwise, if the user does not exist or the user is currently logged in, 
-   the server SHOULD send a negative response.
+  If the user with the given username exists, the server MUST send a
+  positive response.
+  Otherwise, if the user does not exist or the user is currently logged
+  in, the server SHOULD send a negative response.
 
-   Possible responses:
+  Possible responses:
         +OK Deleted user
         -ERR User does not exist
         -ERR User is currently logged in
 
-   Example:
+  Example:
         C: DELE user3
         S: -ERR user does not exist
         C: DELE user1
@@ -125,9 +167,17 @@
         C: DELE user2
         S: +OK Deleted user
 
+
+                Mail Server Management Protocol                 [Page 3]
+
+
+          RFC for Mail Server Management Protocol          November 2024
+
+
 6. LIST
 
-   To obtain a list of all users, the client MUST send the following command:
+   To obtain a list of all users, the client MUST send the following
+   command:
 
         LIST
 
@@ -163,9 +213,17 @@
         S: +OK
         S: user1 69 logs
 
+
+                Mail Server Management Protocol                 [Page 4]
+
+
+          RFC for Mail Server Management Protocol          November 2024
+
+
 7. SET
 
-   To set a configuration value, the client MUST send the following command:
+   To set a configuration value, the client MUST send the following
+   command:
 
         SET <key> <value>
 
@@ -190,7 +248,8 @@
 
 8. GET
 
-   To retrieve a configuration value, the client MUST send the following command:
+   To retrieve a configuration value, the client MUST send the following
+   command:
 
         GET <key>
 
@@ -213,9 +272,17 @@
         C: GET transformer
         S: +OK wc
 
+
+                Mail Server Management Protocol                 [Page 5]
+
+
+          RFC for Mail Server Management Protocol          November 2024
+
+
 9. STAT
 
-   To retrieve server statistics, the client MUST send the following command:
+   To retrieve server statistics, the client MUST send the following
+   command:
 
         STAT
 
@@ -239,13 +306,13 @@
 
 10. LOGS
 
-   To retrieve a list of access logs for a user, the client MUST send the following 
-   command:
+   To retrieve a list of access logs for a user, the client MUST send
+   the following command:
 
         LOGS <username>
 
-   If a user with the given username does not exist, the server SHOULD send a 
-   negative resopnse.
+   If a user with the given username does not exist, the server SHOULD
+   send a negative resopnse.
 
    Possible responses:
         +OK
@@ -260,5 +327,8 @@
 
 11. Conclusion
 
-   This protocol provides a simple and effective way to set configuration values, 
-   retrieve configuration values, and obtain server statistics.
+   This protocol provides a simple and effective way to set
+   configuration values, retrieve configuration values, and
+   obtain server statistics.
+   
+                Mail Server Management Protocol                 [Page 6]
