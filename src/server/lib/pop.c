@@ -1222,7 +1222,7 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address, 
     if (port == manager_port)
     {
         active_managers++;
-        char response[] = OK_RESPONSE(" Manager ready");
+        char response[] = OK_RESPONSE(" MSMP ready");
         asend(client_fd, response, sizeof(response) - 1);
         return KEEP_CONNECTION_OPEN;
     }
