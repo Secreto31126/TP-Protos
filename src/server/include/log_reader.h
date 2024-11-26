@@ -16,6 +16,6 @@ typedef char *(*data_parser)(void *);
  * @param parser
  * @return char*
  */
-char *parse_log(log l, data_parser parser);
+char *parse_log(pop_log l, data_parser parser);
 
 #endif
