@@ -137,8 +137,7 @@ static int parse_pop_cmd(char *cmd)
 }
 
 /**
- * @brief Validate if a user exists in the mail directory.
- * @note The username MUST be a safe string. Use safe_username() to validate.
+ * @brief Validate if a user exists in the server.
  *
  * @param username The input username (NULL terminated).
  * @return true The user exists.
@@ -151,7 +150,6 @@ static bool user_exists(const char *username)
 
 /**
  * @brief Validate if a user mail directory isn't locked.
- * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The input username (NULL terminated).
  * @return true The user directory is locked.
@@ -165,7 +163,6 @@ static bool user_locked(const char *username)
 
 /**
  * @brief Get a maildir lock.
- * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The input username (NULL terminated).
  * @return true The lock was successfully set.
@@ -178,7 +175,6 @@ static bool set_lock(const char *username)
 
 /**
  * @brief Remove a maildir lock.
- * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The input username (NULL terminated).
  * @return true The lock was successfully removed.
@@ -191,7 +187,6 @@ static bool remove_lock(const char *username)
 
 /**
  * @brief Validate a user password.
- * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The username (NULL terminated).
  * @param pass The input password (NULL terminated).
@@ -212,7 +207,6 @@ static bool pass_valid(const char *username, const char *pass)
 
 /**
  * @brief Set the user emails in the client connection.
- * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The username (NULL terminated).
  * @param client The client connection.
