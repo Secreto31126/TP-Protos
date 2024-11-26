@@ -55,8 +55,8 @@ Las flags de ejecución son las siguientes:
 
 | Flag |  Descripcion | 
 |----| -------------------------------------------------------------------------------------------------------------------------- |
-| -p | Establece el puerto en que se encuentra el servidor de administración |
-| -i | Establece la dirección en que se encuentra el servidor de administración |
+| -P | Establece el puerto en que se encuentra el servidor de administración |
+| -L | Establece la dirección en que se encuentra el servidor de administración |
 
 ## Limpieza
 
