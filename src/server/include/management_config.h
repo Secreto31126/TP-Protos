@@ -15,7 +15,7 @@ typedef struct {
 
 char *get_version();
 
-struct sockaddr_in get_manager_adport();
+struct sockaddr_in6 get_manager_adport();
 char set_management_address(const char *new_addr);
 char set_management_port(const char *new_port);
 

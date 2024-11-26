@@ -15,7 +15,7 @@ typedef struct {
 
 char *get_maildir();
 char *get_version();
-struct sockaddr_in get_pop_adport();
+struct sockaddr_in6 get_pop_adport();
 char *get_transformer();
 User *get_users_arr();
 User *get_user(const char *username);

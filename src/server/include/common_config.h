@@ -13,8 +13,8 @@
  */
 bool safe_username(const char *username);
 
-char set_address(const char *input, struct sockaddr_in *address);
+char set_address(const char *input, struct sockaddr_in6 *address);
 
-char set_port(const char *input, struct sockaddr_in *address);
+char set_port(const char *input, struct sockaddr_in6 *address);
 
 #endif

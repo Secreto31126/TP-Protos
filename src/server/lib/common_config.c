@@ -21,28 +21,19 @@ bool safe_username(const char *username)
     return true;
 }
 
-char set_address(const char *input, struct sockaddr_in *address)
+char set_address(const char *input, struct sockaddr_in6 *address)
 {
-    int aux = inet_pton(AF_INET, input, &(address->sin_addr.s_addr));
-    if (aux < 0)
-    {
-        aux = inet_pton(AF_INET6, input, &(address->sin_addr.s_addr));
-        if (aux < 0)
-        {
-            return 1;
-        }
-        address->sin_family = AF_INET6;
-    }
-    return 0;
+    int aux = inet_pton(AF_INET6, input, &(address->sin6_addr));
+    return aux < 1 ? 0 : 1;
 }
 
-char set_port(const char *input, struct sockaddr_in *address)
+char set_port(const char *input, struct sockaddr_in6 *address)
 {
     __u_long port = strtol(input, NULL, 10);
     if (port <= 0 || port > USHRT_MAX)
     {
         return 1;
     }
-    address->sin_port = htons((__u_short)port);
+    address->sin6_port = htons((__u_short)port);
     return 0;
 }

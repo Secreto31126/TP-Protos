@@ -2,10 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct sockaddr_in _management_addr = {
-    .sin_family = AF_INET,
-    .sin_port = MANAGER_DEFAULT_PORT,
-    .sin_addr.s_addr = INADDR_ANY
+static struct sockaddr_in6 _management_addr = {
+    .sin6_family = AF_INET6,
+    .sin6_port = MANAGER_DEFAULT_PORT,
+    .sin6_addr = IN6ADDR_ANY_INIT
     };
 
 static unsigned int _admin_count = 0;
@@ -16,7 +16,7 @@ char *get_version()
     return VERSION;
 }
 
-struct sockaddr_in get_manager_adport()
+struct sockaddr_in6 get_manager_adport()
 {
     return _management_addr;
 }

@@ -92,12 +92,17 @@ static Connection *connections[MAGIC_NUMBER] = {NULL};
  * @brief The path to the bytestuffer program.
  */
 static const char *stuffer;
+/**
+ * @brief The server file descriptor.
+ */
+static int manager_server_fd = -1;
 
 static int active_managers = 0;
 
-void pop_init(const char *bytestuffer)
+void pop_init(const char *bytestuffer, const int manager_fd)
 {
     stuffer = bytestuffer ? bytestuffer : "./dist/bytestuff";
+    manager_server_fd = manager_fd;
 }
 
 void pop_stop()
@@ -1251,11 +1256,9 @@ static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd
     return handle_pop_transaction_state(client, client_fd, cmd, length);
 }
 
-ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address, const short port)
+ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in6 address, const int server_fd)
 {
-    const short manager_port = ntohs(get_manager_adport().sin_port);
-
-    if (port == manager_port && active_managers >= MAX_ADMIN_CONNECTIONS)
+    if (server_fd == manager_server_fd && active_managers >= MAX_ADMIN_CONNECTIONS)
     {
         return CONNECTION_ERROR;
     }
@@ -1267,7 +1270,7 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address, 
         return CONNECTION_ERROR;
     }
 
-    if (port == manager_port)
+    if (server_fd == manager_server_fd)
     {
         active_managers++;
         char response[] = OK_RESPONSE(" MSMP ready");
@@ -1280,9 +1283,9 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address, 
     return KEEP_CONNECTION_OPEN;
 }
 
-ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const short port)
+ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const int server_fd)
 {
-    bool is_manager = port == ntohs(get_manager_adport().sin_port);
+    bool is_manager = server_fd == manager_server_fd;
 
     Connection *client = connections[client_fd];
 
@@ -1345,11 +1348,11 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
     return KEEP_CONNECTION_OPEN;
 }
 
-void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result, const short port)
+void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result, const int server_fd)
 {
     Connection *client = connections[client_fd];
 
-    if (port == ntohs(get_manager_adport().sin_port))
+    if (server_fd == manager_server_fd)
     {
         active_managers--;
         goto COMMON_CONNECTIONS_CLOSE;

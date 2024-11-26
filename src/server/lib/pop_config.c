@@ -15,10 +15,10 @@ static char *_transformer = _default_transformer;
 static unsigned int _user_count = 0;
 static User _users[MAX_USERS] = {0};
 
-static struct sockaddr_in _pop_addr = {
-    .sin_family = AF_INET,
-    .sin_port = POP_DEFAULT_PORT,
-    .sin_addr.s_addr = INADDR_ANY
+static struct sockaddr_in6 _pop_addr = {
+    .sin6_family = AF_INET6,
+    .sin6_port = POP_DEFAULT_PORT,
+    .sin6_addr = IN6ADDR_ANY_INIT
     };
 
 static void create_user_maildir(const char *base_maildir, const char *username)
@@ -68,7 +68,7 @@ char *get_maildir()
     return _mail_dir;
 }
 
-struct sockaddr_in get_pop_adport()
+struct sockaddr_in6 get_pop_adport()
 {
     return _pop_addr;
 }
