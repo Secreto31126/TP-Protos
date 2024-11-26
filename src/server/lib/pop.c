@@ -1297,14 +1297,17 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
     // If there is a command left in the body, store it for the next message
     if (start_cmd != buffer + length)
     {
+        size_t before_len = strlen(client->buffer);
+        size_t remaining_len = length - (start_cmd - buffer);
+
         // If the buffer is full, drop the connection
-        if (sizeof(client->buffer) - strlen(client->buffer) - 1 < length - (start_cmd - buffer))
+        if (sizeof(client->buffer) - before_len - 1 < remaining_len)
         {
             return CONNECTION_ERROR;
         }
 
-        strncpy(client->buffer, start_cmd, length - (start_cmd - buffer));
-        client->buffer[length - (start_cmd - buffer)] = 0;
+        strncpy(client->buffer + before_len, start_cmd, remaining_len);
+        client->buffer[before_len + remaining_len] = 0;
     }
     else
     {
