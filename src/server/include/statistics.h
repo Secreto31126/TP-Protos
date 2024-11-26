@@ -74,7 +74,7 @@ uint64_t get_all_logs_count(statistics_manager *sm);
 uint64_t get_user_logs_count(statistics_manager *sm, char *username);
 uint64_t get_all_logs_range(statistics_manager *sm, pop_log *log_buffer, uint64_t range_start, uint64_t range_end);
 uint64_t get_user_logs_range(statistics_manager *sm, char *username, pop_log *log_buffer, uint64_t range_start, uint64_t range_end);
-uint64_t read_bytes_transferred(statistics_manager *sm, uint64_t bytes);
+uint64_t read_bytes_transferred(statistics_manager *sm);
 uint64_t read_historic_connections(statistics_manager *sm);
 uint64_t read_current_connections(statistics_manager *sm);
 uint64_t read_max_current_connections(statistics_manager *sm);

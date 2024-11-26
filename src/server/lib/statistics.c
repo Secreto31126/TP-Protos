@@ -220,7 +220,7 @@ uint64_t get_user_logs(statistics_manager *sm, char *username, pop_log *log_buff
     return get_all_logs_range(sm, log_buffer, range_start, log_count);
 }
 
-uint64_t read_bytes_transferred(statistics_manager *sm, uint64_t bytes)
+uint64_t read_bytes_transferred(statistics_manager *sm)
 {
     return sm->transferred_bytes;
 }
