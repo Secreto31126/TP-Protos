@@ -22,7 +22,7 @@ static int done = 0;
 void invalid_arguments(int index, char *argv[])
 {
     printf("Unknown argument: %s\n", argv[index]);
-    printf("Known flags are:\n-p <port>\n-i <ip address>\n");
+    printf("Known flags are:\n-P <conf port>\n-L <conf addr>\n");
 }
 
 void parse_response(char *response)
@@ -73,7 +73,7 @@ int read_arguments(int argc, char *argv[], int *ret_port, char **ret_ip)
     *ret_ip = DEFAULT_IP;
     for (int i = 1; i < argc; i++)
     {
-        if (!strcmp(argv[i], "-p"))
+        if (!strcmp(argv[i], "-P"))
         {
             if (argc < i + 1)
             {
@@ -82,7 +82,7 @@ int read_arguments(int argc, char *argv[], int *ret_port, char **ret_ip)
             }
             *ret_port = atoi(argv[++i]);
         }
-        else if (!strcmp(argv[i], "-i"))
+        else if (!strcmp(argv[i], "-L"))
         {
             if (argc < i + 1)
             {
