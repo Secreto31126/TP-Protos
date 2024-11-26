@@ -122,7 +122,9 @@ timestamp log_now()
 
 char *readable_time(timestamp t)
 {
-    return asctime(&t);
+    char *s = asctime(&t);
+    *strstr(s, "\n") = 0;
+    return s;
 }
 
 void add_log_to_hashset(statistics_manager *sm, pop_log *l)

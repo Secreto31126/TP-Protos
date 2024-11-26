@@ -895,6 +895,8 @@ static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int 
             }
 
             bool before = client->authenticated;
+            char username[MAX_USERNAME_LENGTH + 1];
+            memcpy(username, client->username, sizeof(username));
             // Spaces are accepted as part of the password, so don't use the parsed args
             size_t len = handle_pass(client, body + 5, &buffer, is_manager);
             bool after = client->authenticated;
@@ -903,11 +905,11 @@ static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int 
             char *ip_cpy = strdup(ip);
             if (before != after)
             {
-                log_other(_stats, client->username, ip_cpy, log_now(), success_login_log);
+                log_other(_stats, username, ip_cpy, log_now(), success_login_log);
             }
             else
             {
-                log_other(_stats, client->username, ip_cpy, log_now(), failed_login_log);
+                log_other(_stats, username, ip_cpy, log_now(), failed_login_log);
             }
             free(ip_cpy);
 
@@ -1103,6 +1105,14 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
     char response[] = ERR_RESPONSE(" Invalid command");
     asend(client_fd, response, sizeof(response) - 1);
     return KEEP_CONNECTION_OPEN;
+}
+
+/**
+ * @brief toString the log data
+ */
+static char *data_to_string(void *data)
+{
+    return strdup(data);
 }
 
 /**
@@ -1339,7 +1349,7 @@ static ON_MESSAGE_RESULT handle_manager_state(Connection *client, int client_fd,
 
             for (size_t j = 0; j < 64 && logs_buffer[j].username; j++)
             {
-                char *str = parse_log(logs_buffer[j], NULL);
+                char *str = parse_log(logs_buffer[j], data_to_string);
                 asend(client_fd, str, strlen(str));
                 asend(client_fd, POP3_ENTER, sizeof(POP3_ENTER) - 1);
                 free(str);
