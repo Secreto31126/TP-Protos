@@ -1,4 +1,5 @@
 #include <argument_parser.h>
+#include <management_config.h>
 #include <pop_config.h>
 
 static void usage();
@@ -10,6 +11,7 @@ void parse_arguments(int argc, const char *argv[], const char *progname)
 {
     _progname = progname;
     int added_users = 0;
+    int added_admins = 0;
     for (size_t i = 1; i < argc; i++)
     {
         if (argv[i][0] == '-')
@@ -48,24 +50,53 @@ void parse_arguments(int argc, const char *argv[], const char *progname)
                     if(added_users == 10)
                     {
                         printf("Max users reached\n");
-                        usage();
+                        exit(1);
                     }
                     char *user = strdup(argv[i]);
                     char *pass = strchr(user, ':');
                     if(pass == NULL)
                     {
-                        usage();
+                        printf("Pass must be between 1 an 40 chars long\n");
+                        exit(1);
                     }
                     *pass = '\0';
                     pass++;
                     if(set_user(user, pass) != 0)
                     {
                         printf("User must be between 1 an 40 chars long\n");
-                        printf("Pass must be between 1 an 256 chars long\n");
-                        usage();
+                        printf("Pass must be between 1 an 40 chars long\n");
+                        exit(1);
                     }
                     free(user);
                     added_users++;
+                }
+                i--;
+                break;
+            case 'a':
+                while(++i < argc && argv[i][0] != '-')
+                {
+                    if(added_admins == 4)
+                    {
+                        printf("Max admins reached\n");
+                        exit(1);
+                    }
+                    char *admin = strdup(argv[i]);
+                    char *pass = strchr(admin, ':');
+                    if(pass == NULL)
+                    {
+                        printf("Pass must be between 1 an 40 chars long\n");
+                        exit(1);
+                    }
+                    *pass = '\0';
+                    pass++;
+                    if(add_admin(admin, pass) != 0)
+                    {
+                        printf("User must be between 1 an 40 chars long\n");
+                        printf("Pass must be between 1 an 40 chars long\n");
+                        exit(1);
+                    }
+                    free(admin);
+                    added_admins++;
                 }
                 i--;
                 break;
@@ -88,6 +119,7 @@ static void printUsage(FILE *fd)
             "   -p <POP3 port>   Puerto entrante conexiones POP3.\n"
             "   -P <conf port>   Puerto entrante conexiones configuracion\n"
             "   -u <name>:<pass> Usuario y contraseña de usuario que puede usar el servidor. Hasta 10.\n"
+            "   -a <name>:<pass> Usuario y contraseña de usuario que puede usar el servidor de administración. Hasta 4.\n"
             "   -v               Imprime información sobre la versión versión y termina.\n"
             "   -d <dir>         Carpeta donde residen los Maildirs\n"
             "   -t <cmd>         Comando para aplicar transformaciones (WIP)\n"

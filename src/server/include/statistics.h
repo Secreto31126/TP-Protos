@@ -1,3 +1,5 @@
+#ifndef STSTC_H
+#define STSTC_H
 #include <stdint.h>
 #include <time.h>
 #include "closed_hashing.h"
@@ -60,6 +62,7 @@ typedef struct statistics_manager
 statistics_manager *create_statistics_manager();
 void destroy_statistics_manager(statistics_manager *sm);
 timestamp log_now();
+char *readable_time(timestamp t);
 
 void log_bytes_transferred(statistics_manager *sm, char *username, char *ip, uint64_t bytes, timestamp time);
 void log_connect(statistics_manager *sm, char *username, char *ip, timestamp time);
@@ -71,3 +74,5 @@ uint64_t read_bytes_transferred(statistics_manager *sm, uint64_t bytes);
 uint64_t read_historic_connections(statistics_manager *sm);
 uint64_t read_current_connections(statistics_manager *sm);
 uint64_t read_max_current_connections(statistics_manager *sm);
+
+#endif
