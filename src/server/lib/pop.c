@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <logger.h>
 #include <magic.h>
+#include <management_config.h>
 #include <math.h>
 #include <pthread.h>
 #include <pop_config.h>

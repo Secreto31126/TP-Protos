@@ -1,13 +1,10 @@
 #include <pop_config.h>
 #include <dirent.h>
-#include <limits.h>
+#include <common_config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-
-#define POP_DEFAULT_PORT 28160     // htons(110)
-#define MANAGER_DEFAULT_PORT 57616 // htons(4321) because why not
 
 static char *const _default_mail_dir = "./dist/mail";
 static char *_mail_dir = _default_mail_dir;
@@ -21,66 +18,8 @@ static User _users[MAX_USERS] = {0};
 static struct sockaddr_in _pop_addr = {
     .sin_family = AF_INET,
     .sin_port = POP_DEFAULT_PORT,
-    .sin_addr.s_addr = INADDR_ANY};
-
-static struct sockaddr_in _management_addr = {
-    .sin_family = AF_INET,
-    .sin_port = MANAGER_DEFAULT_PORT,
-    .sin_addr.s_addr = INADDR_ANY};
-
-static char set_address(const char *input, struct sockaddr_in *address)
-{
-    int aux = inet_pton(AF_INET, input, &(address->sin_addr.s_addr));
-    if (aux < 0)
-    {
-        aux = inet_pton(AF_INET6, input, &(address->sin_addr.s_addr));
-        if (aux < 0)
-        {
-            return 1;
-        }
-        address->sin_family = AF_INET6;
-    }
-    return 0;
-}
-
-static char set_port(const char *input, struct sockaddr_in *address)
-{
-    __u_long port = strtol(input, NULL, 10);
-    if (port <= 0 || port > USHRT_MAX)
-    {
-        return 1;
-    }
-    address->sin_port = htons((__u_short)port);
-    return 0;
-}
-
-/**
- * @brief Assert safe username string.
- * @note A safe username does not start with a dot, does not contain slashes,
- * is not empty and is shorter than MAX_USERNAME_LENGTH characters.
- *
- * @param username The input username (NULL terminated).
- * @return true The username is safe.
- * @return false The username is not safe.
- */
-static bool safe_username(const char *username)
-{
-    if (!*username || *username == '.')
-    {
-        return false;
-    }
-
-    const char *n = username;
-    while (*n)
-    {
-        if (*n == '/' || ++n - username /* length */ > MAX_USERNAME_LENGTH)
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
+    .sin_addr.s_addr = INADDR_ANY
+    };
 
 static void create_user_maildir(const char *base_maildir, const char *username)
 {
@@ -129,19 +68,9 @@ char *get_maildir()
     return _mail_dir;
 }
 
-char *get_version()
-{
-    return VERSION;
-}
-
 struct sockaddr_in get_pop_adport()
 {
     return _pop_addr;
-}
-
-struct sockaddr_in get_manager_adport()
-{
-    return _management_addr;
 }
 
 char *get_transformer()
@@ -181,19 +110,9 @@ char set_pop_address(const char *new_addr)
     return set_address(new_addr, &_pop_addr);
 }
 
-char set_management_address(const char *new_addr)
-{
-    return set_address(new_addr, &_management_addr);
-}
-
 char set_pop_port(const char *new_port)
 {
     return set_port(new_port, &_pop_addr);
-}
-
-char set_management_port(const char *new_port)
-{
-    return set_port(new_port, &_management_addr);
 }
 
 void set_maildir(const char *new_maildir)
@@ -280,8 +199,9 @@ char delete_user(const char *username)
         return 1;
     }
 
-    if(user->locked){
-        return 2;       //The user is logged in so it can't be deleted
+    if (user->locked)
+    {
+        return 2; // The user is logged in so it can't be deleted
     }
 
     user->locked = _users[_user_count - 1].locked;
