@@ -22,7 +22,6 @@ char *log_type_string(log_t type)
 
 char *aux_parse_log(uint64_t len, const char *__restrict__ __format, ...)
 {
-    int result;
     va_list args;
 
     va_start(args, __format);
@@ -42,7 +41,6 @@ char *parse_log(pop_log l, data_parser parser)
     if (parser != NULL && l.data != NULL && (data_s = parser(l.data)) != NULL)
     {
         uint64_t len = strlen(time_s) + strlen(type_s) + strlen(l.username) + strlen(l.ip) + strlen(data_s) + MAX_FORMAT_SIZE;
-        char *s;
         if (l.ip == NULL || !strcmp(l.ip, l.username))
         {
             char *__restrict__ __format = "%s: %s; %s. INFO: %s.";
