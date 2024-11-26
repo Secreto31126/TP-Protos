@@ -21,11 +21,12 @@ typedef enum ON_MESSAGE_RESULT
  *
  * @param client_fd The client file descriptor.
  * @param address The client address information.
+ * @param port The port the connection was received on.
  * @return KEEP_CONNECTION_OPEN to keep the connection open.
  * @return CLOSE_CONNECTION to close.
  * @return CONNECTION_ERROR to save to stats and close.
  */
-typedef ON_MESSAGE_RESULT (*connection_event)(const int client_fd, struct sockaddr_in address);
+typedef ON_MESSAGE_RESULT (*connection_event)(const int client_fd, struct sockaddr_in address, const short port);
 
 /**
  * @brief Handle a message event
@@ -33,11 +34,12 @@ typedef ON_MESSAGE_RESULT (*connection_event)(const int client_fd, struct sockad
  * @param client_fd The client file descriptor.
  * @param body The message body.
  * @param length The message length.
+ * @param port The port the message was received on.
  * @return KEEP_CONNECTION_OPEN to keep the connection open.
  * @return CLOSE_CONNECTION to close.
  * @return CONNECTION_ERROR to save to stats and close.
  */
-typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body, size_t length);
+typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body, size_t length, const short port);
 
 /**
  * @brief Handle a close event
@@ -45,8 +47,9 @@ typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body
  *
  * @param client_fd The client file descriptor.
  * @param result The result of the last message handled.
+ * @param port The port the connection was received on.
  */
-typedef void (*close_event)(const int client_fd, ON_MESSAGE_RESULT result);
+typedef void (*close_event)(const int client_fd, ON_MESSAGE_RESULT result, const short port);
 
 /**
  * @brief Handle a finished read and send event
@@ -64,20 +67,29 @@ typedef int (*read_event)(FILE *file);
  */
 int start_server(struct sockaddr_in *address);
 /**
+ * @brief Add a server to the poll list.
+ * 
+ * @note Adding a server after the server_loop produces undefined behavior.
+ * (not true, I 100% assert you it would collapse in less than 3 seconds).
+ *
+ * @param server_fd The server file descriptor.
+ * @param address The server address.
+ */
+void add_server(int server_fd, struct sockaddr_in *address);
+/**
  * @brief The main server loop to handle incoming connections and messages.
  *
  * @note If on_connection rejects the connection, on_close will NOT be triggered.
  * It's expected that on_connection will not allocate resources if it will not connect.
  *
  * @note The server will run until a SIGINT or SIGTERM signal is received, which will set the done flag to true.
- * @param server_fd The server file descriptor.
  * @param done The flag to indicate when the server should gracefully stop.
  * @param on_connection The callback function to handle incoming connections, it may be NULL.
  * @param on_message The callback function to handle incoming messages.
  * @param on_close The callback function to handle closed connections, it may be NULL.
  * @return int The exit status.
  */
-int server_loop(int server_fd, const bool *done, connection_event on_connection, message_event on_message, close_event on_close);
+int server_loop(const bool *done, connection_event on_connection, message_event on_message, close_event on_close);
 
 /**
  * @brief Asynchronously send a package to a client.
