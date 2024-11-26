@@ -54,9 +54,9 @@ typedef struct statistics_manager
     uint64_t historic_connections;
     uint64_t transferred_bytes;
     hashset *user_logs;
-    user_logs **user_logs_array;
-    uint64_t user_logs_array_dim;
-    uint64_t user_logs_array_size;
+    log **logs_array;
+    uint64_t logs_array_dim;
+    uint64_t logs_array_size;
 } statistics_manager;
 
 statistics_manager *create_statistics_manager();

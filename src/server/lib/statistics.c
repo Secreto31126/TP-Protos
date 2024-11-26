@@ -73,22 +73,22 @@ statistics_manager *create_statistics_manager()
     sm->transferred_bytes = 0;
     sm->max_current_connections = 0;
     sm->user_logs = new_hashset(hash_user_logs, are_equal_logs, deep_free_logs, BLOCK);
-    sm->user_logs_array = malloc(sizeof(user_logs) * BLOCK);
-    sm->user_logs_array_dim = BLOCK;
-    sm->user_logs_array_size = 0;
+    sm->logs_array = malloc(sizeof(log) * BLOCK);
+    sm->logs_array_dim = BLOCK;
+    sm->logs_array_size = 0;
     return sm;
 }
 
-void resize_user_logs_array(statistics_manager *sm)
+void resize_logs_array(statistics_manager *sm)
 {
-    sm->user_logs_array_dim *= 2;
-    sm->user_logs_array = realloc(sm->user_logs_array, sm->user_logs_array_dim);
+    sm->logs_array_dim *= 2;
+    sm->logs_array = realloc(sm->logs_array, sm->logs_array_dim);
 }
 
-void check_resize_user_logs_array(statistics_manager *sm)
+void check_resize_logs_array(statistics_manager *sm)
 {
-    if (sm->user_logs_array_size == sm->user_logs_array_dim)
-        resize_user_logs_array(sm);
+    if (sm->logs_array_size == sm->logs_array_dim)
+        resize_logs_array(sm);
 }
 
 log *new_log(char *username, char *ip, timestamp time, void *data, log_t type)
@@ -133,10 +133,10 @@ void add_log_to_hashset(statistics_manager *sm, log *l)
     {
         u_log = new_user_logs(l->username);
         hashset_add(set, u_log);
-        check_resize_user_logs_array(sm);
-        sm->user_logs_array[sm->user_logs_array_size++] = u_log;
     }
     add_log(u_log, l);
+    check_resize_logs_array(sm);
+    sm->logs_array[sm->logs_array_size++] = l;
 }
 
 void log_bytes_transferred(statistics_manager *sm, char *username, char *ip, uint64_t bytes, timestamp time)
@@ -160,21 +160,33 @@ void log_other(statistics_manager *sm, char *username, char *ip, timestamp time,
     add_log_to_hashset(sm, new_log(username, ip, time, data, OTHER));
 }
 
-uint64_t get_all_logs(statistics_manager *sm, log *log_buffer, uint64_t log_buffer_size)
+uint64_t get_all_logs_count(statistics_manager *sm)
 {
-    uint64_t index = 0;
-    for (uint64_t i = 0; i < sm->user_logs_array_size; i++)
+    return sm->logs_array_size;
+}
+uint64_t get_user_logs_count(statistics_manager *sm, char *username)
+{
+    user_logs dummy;
+    dummy.username = username;
+
+    user_logs *u_log = U_LOG(hashset_get(sm->user_logs, &dummy));
+    if (u_log == NULL)
+        return 0;
+    return u_log->logs_size;
+}
+
+uint64_t get_all_logs_range(statistics_manager *sm, log *log_buffer, uint64_t range_start, uint64_t range_end)
+{
+    uint64_t index = 0, aux = get_all_logs_count(sm);
+    if (range_end > aux)
+        range_end = aux;
+    for (uint64_t i = range_start; i < range_end; i++)
     {
-        user_logs *u_log = sm->user_logs_array[i];
-        for (uint64_t j = 0; j < u_log->logs_size && index < log_buffer_size; j++)
-        {
-            log_buffer[index++] = *(u_log->logs[j]);
-        }
+        log_buffer[i] = *(sm->logs_array[i]);
     }
     return index;
 }
-
-uint64_t get_user_logs(statistics_manager *sm, char *username, log *log_buffer, uint64_t log_buffer_size)
+uint64_t get_user_logs_range(statistics_manager *sm, char *username, log *log_buffer, uint64_t range_start, uint64_t range_end)
 {
     user_logs dummy;
     dummy.username = username;
@@ -183,11 +195,27 @@ uint64_t get_user_logs(statistics_manager *sm, char *username, log *log_buffer, 
     if (u_log == NULL)
         return 0;
     uint64_t i;
-    for (i = 0; i < u_log->logs_size && i < log_buffer_size; i++)
+    if (range_end > u_log->logs_size)
+        range_end = u_log->logs_size;
+    for (i = range_start; i < u_log->logs_size && i < range_end; i++)
     {
         log_buffer[i] = *(u_log->logs[i]);
     }
     return i;
+}
+
+uint64_t get_all_logs(statistics_manager *sm, log *log_buffer, uint64_t log_buffer_size)
+{
+    uint64_t log_count = get_all_logs_count(sm);
+    uint64_t range_start = log_buffer_size < log_count ? log_count - log_buffer_size : 0;
+    return get_all_logs_range(sm, log_buffer, range_start, log_count);
+}
+
+uint64_t get_user_logs(statistics_manager *sm, char *username, log *log_buffer, uint64_t log_buffer_size)
+{
+    uint64_t log_count = get_user_logs_count(sm, username);
+    uint64_t range_start = log_buffer_size < log_count ? log_count - log_buffer_size : 0;
+    return get_all_logs_range(sm, log_buffer, range_start, log_count);
 }
 
 uint64_t read_bytes_transferred(statistics_manager *sm, uint64_t bytes)
