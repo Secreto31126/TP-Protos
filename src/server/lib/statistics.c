@@ -60,6 +60,8 @@ void deep_free_logs(void *logs)
     user_logs *l = U_LOG(logs);
     for (uint64_t i = 0; i < l->logs_size; i++)
     {
+        free(l->logs[i]->ip);
+        free(l->logs[i]->username);
         free(l->logs[i]);
     }
     free_user_logs(l);
@@ -94,8 +96,8 @@ void check_resize_logs_array(statistics_manager *sm)
 pop_log *new_log(char *username, char *ip, timestamp time, void *data, log_t type)
 {
     pop_log *l = malloc(sizeof(pop_log));
-    l->username = username;
-    l->ip = ip;
+    l->username = strdup(username);
+    l->ip = strdup(ip);
     l->time = time;
     l->data = data;
     l->type = type;
