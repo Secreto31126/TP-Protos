@@ -1,5 +1,6 @@
 #include <argument_parser.h>
 #include <logger.h>
+#include <management_config.h>
 #include <netutils.h>
 #include <pop.h>
 #include <pop_config.h>
@@ -28,7 +29,7 @@ int main(int argc, const char *argv[])
 
     setup();
 
-    struct sockaddr_in address_pop = get_pop_adport();
+    struct sockaddr_in6 address_pop = get_pop_adport();
 
     int pop_fd = start_server(&address_pop);
     if (pop_fd < 0)
@@ -38,9 +39,9 @@ int main(int argc, const char *argv[])
 
     add_server(pop_fd, &address_pop);
 
-    LOG("Server listening on %s:%d...\n", inet_ntoa(address_pop.sin_addr), ntohs(address_pop.sin_port));
+    LOG("Server listening on port %d...\n", ntohs(address_pop.sin6_port));
 
-    struct sockaddr_in address_manager = get_manager_adport();
+    struct sockaddr_in6 address_manager = get_manager_adport();
 
     int manager_fd = start_server(&address_manager);
     if (manager_fd < 0)
@@ -50,11 +51,15 @@ int main(int argc, const char *argv[])
 
     add_server(manager_fd, &address_manager);
 
-    LOG("Manager listening on %s:%d...\n", inet_ntoa(address_manager.sin_addr), ntohs(address_manager.sin_port));
+    LOG("Manager listening on port %d...\n", ntohs(address_manager.sin6_port));
 
-    pop_init(NULL);
-    int r = server_loop(&done, handle_pop_connect, handle_pop_message, handle_pop_close);
+    statistics_manager *stats = create_statistics_manager();
+
+    pop_init(NULL, manager_fd, stats);
+    int r = server_loop(&done, handle_pop_connect, handle_pop_message, handle_pop_close, stats);
     pop_stop();
+
+    destroy_statistics_manager(stats);
 
     return r;
 }

@@ -15,13 +15,15 @@
     close(fds[i].fd);              \
     fds[i--] = fds[--nfds];
 
-#define NOTIFY_CLOSE(fds, pending, fd, on_close, status)             \
-    if (!pending[fd].closed)                                         \
-    {                                                                \
-        fds[i].events &= ~POLLIN;                                    \
-        on_close(fd, status, pending[fd].server_port);               \
-        log_disconnect(stats, inet_ntoa(pending[fd].ip), log_now()); \
-        pending[fd].closed = true;                                   \
+#define NOTIFY_CLOSE(fds, pending, fd, on_close, status)                                        \
+    if (!pending[fd].closed)                                                                    \
+    {                                                                                           \
+        fds[i].events &= ~POLLIN;                                                               \
+        on_close(fd, status, pending[fd].server_fd);                                            \
+        char NOTIFY_CLOSE__ipv6_buffer[40];                                                     \
+        ipv6_to_str_unexpanded(NOTIFY_CLOSE__ipv6_buffer, &pending[fd].ip);                     \
+        log_disconnect(stats, NOTIFY_CLOSE__ipv6_buffer, NOTIFY_CLOSE__ipv6_buffer, log_now()); \
+        pending[fd].closed = true;                                                              \
     }
 
 typedef struct DataList
@@ -92,8 +94,8 @@ typedef struct DataHeader
     {
         struct
         {
-            struct in_addr ip;
-            short server_port;
+            struct in6_addr ip;
+            int server_fd;
             bool closed;
             DataList messages;
             DataList splitters;
@@ -131,7 +133,7 @@ static void iasend(DataList *list, int client_fd, const char *message, size_t le
  * @return CLOSE_CONNECTION to close the connection (an ESC node was found)
  * @return CONNECTION_ERROR if an error happened sending the message
  */
-static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_index, bool *empty_node);
+static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_index, bool *empty_node, statistics_manager *stats);
 /**
  * @brief Sends a buffer of a file to a client
  *
@@ -161,6 +163,14 @@ static bool finish_transmition(DataList *list, int client_fd, int fds_index);
  * @param data The first node of the linked list
  */
 static void free_data(Data *data);
+/**
+ * @brief IPv6 to string
+ *
+ * @param str The string to store the address
+ * @param addr The IPv6 address
+ * @return size_t The length of the string
+ */
+static size_t ipv6_to_str_unexpanded(char str[40], const struct in6_addr *addr);
 
 // Array to hold client sockets and poll event types
 static struct pollfd fds[MAGIC_NUMBER];
@@ -172,12 +182,10 @@ static int servers_count = 0;
 // Array to hold pending messages or files
 static DataHeader pending[MAGIC_NUMBER];
 
-static statistics_manager *stats = NULL;
-
-int start_server(struct sockaddr_in *address)
+int start_server(struct sockaddr_in6 *address)
 {
     int server_fd;
-    int opt = 1;
+    int opt;
 
     // Initialize the pending mutex
     if (sem_init(&fds_mutex, 0, 1) < 0)
@@ -187,16 +195,24 @@ int start_server(struct sockaddr_in *address)
     }
 
     // Create socket file descriptor
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+    if ((server_fd = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP)) < 0)
     {
         perror("socket failed");
         return -1;
     }
 
     // Set the server socket settings
+    opt = 0;
+    if (setsockopt(server_fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0)
+    {
+        perror("IPV6 setsockopt failed");
+        return -1;
+    }
+
+    opt = 1;
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
     {
-        perror("setsockopt failed");
+        perror("The other setsockopt failed");
         return -1;
     }
 
@@ -224,7 +240,7 @@ int start_server(struct sockaddr_in *address)
     return server_fd;
 }
 
-void add_server(int server_fd, struct sockaddr_in *address)
+void add_server(int server_fd, struct sockaddr_in6 *address)
 {
     sem_wait(&fds_mutex);
 
@@ -233,8 +249,8 @@ void add_server(int server_fd, struct sockaddr_in *address)
     nfds++;
 
     pending[server_fd].type = FD_SOCKET;
-    pending[server_fd].ip = address->sin_addr;
-    pending[server_fd].server_port = ntohs(address->sin_port);
+    pending[server_fd].ip = address->sin6_addr;
+    pending[server_fd].server_fd = server_fd;
 
     servers_count++;
 
@@ -250,15 +266,13 @@ static void noop()
 {
 }
 
-int server_loop(const bool *done, connection_event on_connection, message_event on_message, close_event on_close)
+int server_loop(const bool *done, connection_event on_connection, message_event on_message, close_event on_close, statistics_manager *stats)
 {
-    struct sockaddr_in address;
+    struct sockaddr_in6 address;
     int new_socket, addrlen = sizeof(address);
 
-    on_connection = on_connection ? on_connection : (connection_event) keep_alive_noop;
-    on_close = on_close ? on_close : (close_event) noop;
-
-    stats = create_statistics_manager();
+    on_connection = on_connection ? on_connection : (connection_event)keep_alive_noop;
+    on_close = on_close ? on_close : (close_event)noop;
 
     while (!*done)
     {
@@ -276,7 +290,6 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
             }
 
             perror("poll error");
-            destroy_statistics_manager(stats);
             return EXIT_FAILURE;
         }
 
@@ -292,20 +305,22 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
                 if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0)
                 {
                     perror("accept");
-                    destroy_statistics_manager(stats);
                     return EXIT_FAILURE;
                 }
 
                 pending[new_socket].type = FD_SOCKET;
                 pending[new_socket].closed = false;
-                pending[new_socket].ip = address.sin_addr;
-                pending[new_socket].server_port = pending[server_fd].server_port;
+                pending[new_socket].ip = address.sin6_addr;
+                pending[new_socket].server_fd = server_fd;
                 pending[new_socket].messages.first = NULL;
                 pending[new_socket].messages.last = NULL;
 
-                LOG("New connection: socket fd %s:%d\n", inet_ntoa(address.sin_addr), new_socket);
+                char ip_str[40];
+                ipv6_to_str_unexpanded(ip_str, &address.sin6_addr);
 
-                log_connect(stats, inet_ntoa(address.sin_addr), log_now());
+                LOG("New connection: socket fd %s:%d\n", ip_str, new_socket);
+
+                log_connect(stats, ip_str, ip_str, log_now());
 
                 // Add new socket to fds array
                 fds[nfds].fd = new_socket;
@@ -313,7 +328,7 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
                 fds[nfds].revents = 0;
                 nfds++;
 
-                ON_MESSAGE_RESULT result = on_connection(new_socket, address, pending[server_fd].server_port);
+                ON_MESSAGE_RESULT result = on_connection(new_socket, address, server_fd);
 
                 if (result != KEEP_CONNECTION_OPEN)
                 {
@@ -414,7 +429,10 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
 
                     LOG("Received from client %d (%d bytes): %.512s\n", fd, len, buffer);
 
-                    ON_MESSAGE_RESULT result = on_message(fd, buffer, len, pending[fd].server_port);
+                    char ip[40];
+                    ipv6_to_str_unexpanded(ip, &pending[fd].ip);
+
+                    ON_MESSAGE_RESULT result = on_message(fd, buffer, len, pending[fd].server_fd, ip);
 
                     if (result != KEEP_CONNECTION_OPEN)
                     {
@@ -449,7 +467,7 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
                     continue;
                 }
 
-                ON_MESSAGE_RESULT result = time_to_send(&header->messages, fd, i, NULL);
+                ON_MESSAGE_RESULT result = time_to_send(&header->messages, fd, i, NULL, stats);
 
                 if (result != KEEP_CONNECTION_OPEN)
                 {
@@ -472,7 +490,6 @@ int server_loop(const bool *done, connection_event on_connection, message_event 
         sem_post(&fds_mutex);
     }
 
-    destroy_statistics_manager(stats);
     return EXIT_SUCCESS;
 }
 
@@ -481,7 +498,7 @@ void asend(int client_fd, const char *message, size_t length)
     iasend(&pending[client_fd].messages, client_fd, message, length);
 }
 
-static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_index, bool *empty_node)
+static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_index, bool *empty_node, statistics_manager *stats)
 {
     Data *data = list->first;
 
@@ -508,7 +525,7 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
     if (data->type == MESSAGE_SPLITTER)
     {
         bool empty_splitter = false;
-        ON_MESSAGE_RESULT result = time_to_send(&data->splitter.messages, client_fd, fds_index, &empty_splitter);
+        ON_MESSAGE_RESULT result = time_to_send(&data->splitter.messages, client_fd, fds_index, &empty_splitter, stats);
 
         if (empty_splitter && data->splitter.fd < 0)
         {
@@ -546,7 +563,7 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
 
             if (list->first)
             {
-                return time_to_send(list, client_fd, fds_index, empty_node);
+                return time_to_send(list, client_fd, fds_index, empty_node, stats);
             }
 
             list->last = NULL;
@@ -580,6 +597,10 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
         list->last = NULL;
         return CONNECTION_ERROR;
     }
+
+    char ip[40];
+    ipv6_to_str_unexpanded(ip, &pending[client_fd].ip);
+    log_bytes_transferred(stats, ip, ip, sent, log_now());
 
     if (sent < length)
     {
@@ -803,4 +824,19 @@ static void free_data(Data *data)
     }
 
     free(data);
+}
+
+static size_t ipv6_to_str_unexpanded(char str[40], const struct in6_addr *addr)
+{
+    size_t i = snprintf(str, 40, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+                        (int)addr->s6_addr[0], (int)addr->s6_addr[1],
+                        (int)addr->s6_addr[2], (int)addr->s6_addr[3],
+                        (int)addr->s6_addr[4], (int)addr->s6_addr[5],
+                        (int)addr->s6_addr[6], (int)addr->s6_addr[7],
+                        (int)addr->s6_addr[8], (int)addr->s6_addr[9],
+                        (int)addr->s6_addr[10], (int)addr->s6_addr[11],
+                        (int)addr->s6_addr[12], (int)addr->s6_addr[13],
+                        (int)addr->s6_addr[14], (int)addr->s6_addr[15]);
+    str[39] = '\0';
+    return i;
 }

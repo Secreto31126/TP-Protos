@@ -17,7 +17,7 @@ Implementación de un servidor para el protocolo pop3, diseño de un protocolo p
 La compilación se realiza en el directorio raíz con el comando:
 
 ```bash
-make
+make all DEBUG=0
 ```
 
 ## Ejecución

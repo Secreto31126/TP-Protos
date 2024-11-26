@@ -1,345 +1,340 @@
-## POP3 server manager protocol
-- Autenticación con usuario y contraseña
-- Agregar/actualizar usuarios con su contraseña
-- Eliminar usuarios
-- Cambiar el directorio donde se guardan los correos
-- Setear el transformador de mensajes
-- Obtener métricas
-    - Obtener la cantidad de conexiones históricas
-    - Obtener la máxima cantidad de conexiones simultaneas
-    - Obtener el número de bytes transferidos
-    - Obetener una lista de accesos por usuario para ver el historial de conexiones y la IP origen de las mismas.
-
-Los usuarios deben ser de hasta 40 caracteres al igual que las contraseñas.
-
-Decisiones:
-- Orientado a la conexión => TCP
-- Binario
-- Inicio de la comunicación dado por el cliente
-
-Comandos:
-Generalidades:
-- Todos los comandos empiezan con un byte que indica el método a ejecutar a excpción de la autenticación que se realiza con el usuario y la contraseña.
-
-Autenticación:
-
-        +-----+------+------+------+------+
-        | VER | ULEN | USER | PLEN | PASS |
-        +-----+------+------+------+------+
-        |  1  |  1   | ULEN |  1   | PLEN |
-        +-----+------+------+------+------+
-
-Respuestas:
-        +-----+--------+
-        | VER | STATUS |
-        +-----+--------+
-        |  1  |   1    |
-        +-----+--------+
-- VER: Versión del protocolo (en principio siempre 1)
-- Status:
-    - 0: OK
-    - 1: Error
-
-Agregar/actualizar usuarios:
-
-        +---+------+------+------+------+
-        | 0 | ULEN | USER | PLEN | PASS |
-        +---+------+------+------+------+
-        | - |  1   | ULEN |  1   | PLEN |
-        +---+------+------+------+------+
-
-Respuestas:
-        +--------+
-        | STATUS |
-        +--------+
-        |   1    |
-        +--------+
-
-- Status:
-    - 0: OK created
-    - 1: OK updated password
-    - 2: Error unsafe username
-    - 3: Error unsafe password
-    - 4: Error user limit reached
-
-Eliminar usuarios:
-
-        +---+------+------+
-        | 1 | ULEN | USER |
-        +---+------+------+
-        | - |  1   | ULEN |
-        +---+------+------+
-
-Respuestas:
-        +--------+
-        | STATUS |
-        +--------+
-        |   1    |
-        +--------+
-
-- Status:
-    - 0: OK deleted
-    - 1: Error user not found
-
-Obtener la lista de usuarios:
-
-        +---+
-        | 2 |
-        +---+
-        | - |
-        +---+
-
-Respuestas:
-        +--------+------+-----------+
-        | STATUS | RLEN |   RESP    |
-        +--------+------+-----------+
-        |   1    |  1   | 40 * RLEN |
-        +--------+------+-----------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-- RLEN: Cantidad de usuarios
-- RESP: Lista de usuarios (cada usuario está NULL terminated)
-
-Obtener contraseña de un usuario:
-
-        +---+------+------+
-        | 3 | ULEN | USER |
-        +---+------+------+
-        | - |  1   | ULEN |
-        +---+------+------+
-
-Respuestas:
-        +--------+------+------+
-        | STATUS | PLEN | PASS |
-        +--------+------+------+
-        |   1    |  1   | PLEN |
-        +--------+------+------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-- PLEN: Cantidad de bytes de la respuesta
-- PASS: Contraseña del usuario
-
-Cambiar el directorio donde se guardan los correos:
-
-        +---+------+------+
-        | 4 | DLEN | DIR  |
-        +---+------+------+
-        | - |  1   | DLEN |
-        +---+------+------+
-
-Respuestas:
-        +--------+
-        | STATUS |
-        +--------+
-        |   1    |
-        +--------+
-
-- Status:
-    - 0: OK
-    - 1: Error unsafe directory
-
-Getter de directorio donde se guardan los correos:
-
-        +---+
-        | 5 |
-        +---+
-        | - |
-        +---+
-
-Respuestas:
-        +--------+------+------+
-        | STATUS | DLEN | DIR  |
-        +--------+------+------+
-        |   1    |  1   | DLEN |
-        +--------+------+------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-- DLEN: Cantidad de bytes de la respuesta
-- DIR: Directorio donde se guardan los correos
-
-Setear el transformador de mensajes:
-
-        +---+------+------+
-        | 6 | TLEN | TRAN |
-        +---+------+------+
-        | - |  1   | TLEN |
-        +---+------+------+
-
-Respuestas:
-        +--------+
-        | STATUS |
-        +--------+
-        |   1    |
-        +--------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-
-TODO: Errores???
-
-Getter del transformador de mensajes:
-
-        +---+
-        | 7 |
-        +---+
-        | - |
-        +---+
-
-Respuestas:
-        +--------+------+------+
-        | STATUS | TLEN | TRAN |
-        +--------+------+------+
-        |   1    |  1   | TLEN |
-        +--------+------+------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-- TLEN: Cantidad de bytes de la respuesta
-- TRAN: Transformador de mensajes
-
-Obtener cantidad de conexiones históricas:
-
-        +---+
-        | 8 |
-        +---+
-        | - |
-        +---+
-
-Respuestas:
-        +--------+------+------+
-        | STATUS | RLEN | RESP |
-        +--------+------+------+
-        |   1    |  1   | RLEN |
-        +--------+------+------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-- RLEN: Cantidad de bytes de la respuesta
-- RESP: Cantidad de conexiones históricas expresada como una cadena de caracteres
-(A chequear, podriamos pasar un numero y ver como es la bola de little/big endian)
-
-Obtener la máxima cantidad de conexiones simultaneas:
-
-        +---+
-        | 9 |
-        +---+
-        | - |
-        +---+
-
-Respuestas:
-        +--------+------+------+
-        | STATUS | RLEN | RESP |
-        +--------+------+------+
-        |   1    |  1   | RLEN |
-        +--------+------+------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-- RLEN: Cantidad de bytes de la respuesta
-- RESP: Cantidad de conexiones simultaneas expresada como una cadena de caracteres
-(A chequear, podriamos pasar un numero y ver como es la bola de little/big endian)
-
-Obtener el número de bytes transferidos:
-
-        +----+
-        | 10 |
-        +----+
-        | -  |
-        +----+
-
-Respuestas:
-        +--------+------+------+
-        | STATUS | RLEN | RESP |
-        +--------+------+------+
-        |   1    |  1   | RLEN |
-        +--------+------+------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-- RLEN: Cantidad de bytes de la respuesta
-- RESP: Cantidad de bytes transferidos expresada como una cadena de caracteres
-
-
-Obetener una lista de accesos por usuario para ver el historial de conexiones y la IP origen de las mismas:
-
-Generalidades: Se indica que versión de IP se quiere obtener (IPV4, IPV6 o ambas)
-
-        +----+------+------+-----+
-        | 11 | ULEN | USER | VER |
-        +----+------+------+-----+
-        | -  |  1   | ULEN |  1  |
-        +----+------+------+-----+
-
-Casos:
-Default:
-        +----+------+------+---+
-        | 11 | ULEN | USER | 0 |
-        +----+------+------+---+
-        | -  |  1   | ULEN | - |
-        +----+------+------+---+
-
-Responde con todas las versiones de IP mezcladas (IPV4 e IPV6)
-Respuestas:
-        +--------+------+-----------+
-        | STATUS | RLEN |   RESP    |
-        +--------+------+-----------+
-        |   1    |  1   | 16 * RLEN |
-        +--------+------+-----------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-- RLEN: Cantidad de IPs de la respuesta
-- RESP: Lista de IPs de las conexiones (En caso de IPV4, CRLF terminated)
-(A chequear)
-
-IPV4:
-        +----+------+------+---+
-        | 11 | ULEN | USER | 4 |
-        +----+------+------+---+
-        | -  |  1   | ULEN | - |
-        +----+------+------+---+
-
-Respuestas:
-        +--------+------+----------+
-        | STATUS | RLEN |   RESP   |
-        +--------+------+----------+
-        |   1    |  1   | 4 * RLEN |
-        +--------+------+----------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-- RLEN: Cantidad de IPs de la respuesta
-- RESP: Lista de IPs de las conexiones.
-
-IPV6:
-        +----+------+------+---+
-        | 11 | ULEN | USER | 6 |
-        +----+------+------+---+
-        | -  |  1   | ULEN | - |
-        +----+------+------+---+
-
-Respuestas:
-        +--------+------+-----------+
-        | STATUS | RLEN |   RESP    |
-        +--------+------+-----------+
-        |   1    |  1   | 16 * RLEN |
-        +--------+------+-----------+
-
-- Status:
-    - 0: OK
-    - 1: Error
-- RLEN: Cantidad de IPs de la respuesta
-- RESP: Lista de IPs de las conexiones.
+                                                       November 26, 2024
+
+                RFC for Mail Server Management Protocol
+        
+Terminology
+
+     The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+     NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and
+     "OPTIONAL" in this document are to be interpreted as described in
+     RFC 2119.
+
+Table of Contents
+
+     1. Introduction ................................................. 1
+     2. Generalizations .............................................. 1
+     3. Start of connection .......................................... 2
+          3.1. USER .................................................. 2
+          3.2. PASS .................................................. 2
+     4. ADD .......................................................... 2
+     5. DELE ......................................................... 3
+     6. LIST ......................................................... 3
+          6.1. LIST <username> ....................................... 4
+     7. SET .......................................................... 5
+     8. GET .......................................................... 5
+     9. STAT ......................................................... 6
+     10. LOGS ........................................................ 6
+     11. Conclusion .................................................. 6
+
+1. Introduction
+
+   This document describes a text-based connection oriented protocol for
+   setting configuration values and retrieving statistics from a POP3
+   server. The protocol allows clients to set and get configuration
+   values and obtain server statistics.
+
+2. Generalizations
+
+   Initialy, the server host SHOULD start the MSMP server by listening
+   on TCP port 4321.
+
+   All server responses MUST start with:
+        
+        +OK
+
+   in case of possitive results. Or:
+
+        -ERR
+   
+   in case of negative results.
+
+   Messages providing more information MAY be appended to the end
+   of the response. 
+
+   Some responses MIGHT be multi-line, which are terminated by a
+   CRLF.CRLF byte sequence.
+
+
+                Mail Server Management Protocol                 [Page 1]
+
+
+          RFC for Mail Server Management Protocol          November 2024
+
+
+3. Start of connection
+   
+   On connection to the server, the server MUST send an initial
+   positive message indicating the server's version. 
+   
+   In response the client MUST authenticate themselves in the
+   following 2 steps:
+
+   Firstly, the client sends this message:
+        
+        USER <username>
+
+   To which the server will always answer positively. And then
+   the client sends:
+
+        PASS <password>
+
+   If the user and password are correct, the server MUST send
+   a positive response.
+   If the user does not exist or the password is not correct,
+   the server SHOULD send a negative response.
+
+        Note: The server SHOULD NOT send different responses to
+        when the user does not exists and when the password is
+        not correct. This may be a security vulnerability.
+
+   Possible responses:
+        +OK Logged in
+        -ERR Invalid credentials
+
+   Example:
+        S: +OK MSMP server ready
+        C: USER user1
+        S: +OK
+        C: PASS pass1
+        S: -ERR Invalid credentials
+        C: USER user1
+        S: +OK
+        C: PASS pass2
+        S: +OK Logged in
+
+4. ADD
+
+   In order to add or update a user, the client MUST send the following
+   command:
+
+        ADD <username> <password>
+
+   If the user with the given username already exists, the password
+   SHOULD be updated.
+   Otherwise, if the user does not exist and there is space for a new
+   user, the server MUST create the new user and its maildir and send a
+   positive response.
+   If the user does not exist and there is no more space for users, the
+   server SHOULD send a negative response.
+
+
+                Mail Server Management Protocol                 [Page 2]
+
+
+          RFC for Mail Server Management Protocol          November 2024
+
+
+     Note: usernames SHOULD be limited to 40 characters, as it is the
+     limit set by POP3.
+
+   Possible responses:
+        +OK Added user
+        +OK Updated password
+        -ERR Unsafe username
+        -ERR User limit reached
+
+   Example:
+        C: ADD user1 pass1
+        S: +OK Updated password
+        C: ADD user2 pass2
+        S: +OK Added user
+        C: ADD 41_character_long_username_______________ pass1
+        S: -ERR Unsafe username
+        C: ADD user3 pass3
+        S: -ERR User limit reached 
+
+5. DELE
+
+  In order to delete a user, the client MUST send the following command:
+
+        DELE <username>
+
+  If the user with the given username exists, the server MUST send a
+  positive response.
+  Otherwise, if the user does not exist or the user is currently logged
+  in, the server SHOULD send a negative response.
+
+  Possible responses:
+        +OK Deleted user
+        -ERR User does not exist
+        -ERR User is currently logged in
+
+  Example:
+        C: DELE user3
+        S: -ERR user does not exist
+        C: DELE user1
+        S: -ERR User is currently logged in
+        C: DELE user2
+        S: +OK Deleted user
+
+
+                Mail Server Management Protocol                 [Page 3]
+
+
+          RFC for Mail Server Management Protocol          November 2024
+
+
+6. LIST
+
+   To obtain a list of all users, the client MUST send the following
+   command:
+
+        LIST
+
+   If there are no users, the server MAY send a negative response.
+
+   Possible responses:
+        +OK
+        S: <username 1>
+        S: <username 2>
+        S: ...
+        S: .
+
+   Example:
+        C: LIST
+        S: +OK
+        S: user1
+        S: user1
+        S: .
+
+   The client MAY add a parameter in order to obtain a specific user:
+   
+        LIST <username>
+
+   The server MAY append additional information to the response.
+   If the specified user does not exist, the server SHOULD send a 
+   negative response.
+
+   Possible responses:
+        +OK <username> <log count>
+        -ERR User does not exist
+
+   Example:
+        C: LIST user1
+        S: +OK user1 69
+
+
+                Mail Server Management Protocol                 [Page 4]
+
+
+          RFC for Mail Server Management Protocol          November 2024
+
+
+7. SET
+
+   To set a configuration value the client MUST send the following command:
+
+        SET <key> <value>
+
+   Valid keys MAY be:
+        - maildir
+        - transformer
+
+   Keys MUST be limited to 40 characters case sensitive.
+   Values MUST be limited to 100 characters and MUST NOT contain spaces.
+
+   If the key is valid, the server MUST send a positive response.
+   If the key is invalid, the server MUST send a negative response.
+
+   Possible responses:
+        +OK Changed value
+        -ERR Invalid key
+
+   Example:
+        C: SET this_is_an_invalid_key ./maildir
+        S: -ERR Invalid key
+        C: SET maildir ./maildir
+        S: +OK Changed value
+        C: SET transformer wc
+        S: +OK Changed value
+
+8. GET
+
+   To retrieve a configuration value, the client MUST send the following
+   command:
+
+        GET <key>
+
+   Valid keys MAY be:
+        - maildir
+        - transformer
+
+   If the key is valid, the server MUST send a positive response.
+   If the key is invalid, the server MUST send a negative response.
+
+   Possible responses:
+        +OK <value>
+        -ERR Invalid key
+
+   Example:
+        C: GET this_is_an_invalid_key
+        S: -ERR Invalid key
+        C: GET maildir
+        S: +OK ./maildir
+        C: GET transformer
+        S: +OK wc
+
+
+                Mail Server Management Protocol                 [Page 5]
+
+
+          RFC for Mail Server Management Protocol          November 2024
+
+
+9. STAT
+
+   To retrieve server statistics, the client MUST send the following
+   command:
+
+        STAT
+
+   The statistics MAY include:
+        - Total number of historical connections
+        - Maximum number of simultaneous connections
+        - Total number of bytes transferred
+
+   Possible responses:
+        +OK
+        Total connections:              <connection count>
+        Historical maximum traffic:     <max traffic>
+        Total transferred bytes:        <total bytes>
+        .
+
+   Example:
+        C: STAT
+        S: +OK
+        S: Total connections:              156
+        S: Historical maximum traffic:     201
+        S: Total transferred bytes:        640028
+        S: .
+
+10. LOGS
+
+   To retrieve a list of access logs for a user, the client MUST send
+   the following command:
+
+        LOGS <username>
+
+   If a user with the given username does not exist, the server SHOULD
+   send a negative resopnse.
+
+   Possible responses:
+        +OK
+        <log entries>
+        .
+        -ERR Invalid user
+
+   Example:
+        C: LOGS user123
+        S: +OK
+        S: 2023-10-01 12:00:00 IP: 192.168.1.1
+        S: 2023-10-02 14:30:00 IP: 192.168.1.2
+        S: .
+
+11. Conclusion
+
+   This protocol provides a simple and effective way to set
+   configuration values, retrieve configuration values, and
+   obtain server statistics.
+   
+                Mail Server Management Protocol                 [Page 6]

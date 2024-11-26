@@ -2,8 +2,11 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <fcntl.h>
+#include <log_reader.h>
 #include <logger.h>
 #include <magic.h>
+#include <management_config.h>
 #include <math.h>
 #include <pthread.h>
 #include <pop_config.h>
@@ -90,12 +93,25 @@ static Connection *connections[MAGIC_NUMBER] = {NULL};
  * @brief The path to the bytestuffer program.
  */
 static const char *stuffer;
+/**
+ * @brief The server file descriptor.
+ */
+static int manager_server_fd = -1;
+/**
+ * @brief The statistics manager for logging.
+ */
+static statistics_manager *_stats;
+
+static char *success_login_log = "Logged in";
+static char *failed_login_log = "Failed loggin";
 
 static int active_managers = 0;
 
-void pop_init(const char *bytestuffer)
+void pop_init(const char *bytestuffer, const int manager_fd, statistics_manager *stats)
 {
     stuffer = bytestuffer ? bytestuffer : "./dist/bytestuff";
+    manager_server_fd = manager_fd;
+    _stats = stats;
 }
 
 void pop_stop()
@@ -135,8 +151,7 @@ static int parse_pop_cmd(char *cmd)
 }
 
 /**
- * @brief Validate if a user exists in the mail directory.
- * @note The username MUST be a safe string. Use safe_username() to validate.
+ * @brief Validate if a user exists in the server.
  *
  * @param username The input username (NULL terminated).
  * @return true The user exists.
@@ -148,8 +163,19 @@ static bool user_exists(const char *username)
 }
 
 /**
+ * @brief Validate if an admin exists in the server.
+ *
+ * @param username The input username (NULL terminated).
+ * @return true The user exists.
+ * @return false The user does not exist.
+ */
+static bool admin_exists(const char *username)
+{
+    return get_admin(username) != NULL;
+}
+
+/**
  * @brief Validate if a user mail directory isn't locked.
- * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The input username (NULL terminated).
  * @return true The user directory is locked.
@@ -163,7 +189,6 @@ static bool user_locked(const char *username)
 
 /**
  * @brief Get a maildir lock.
- * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The input username (NULL terminated).
  * @return true The lock was successfully set.
@@ -176,7 +201,6 @@ static bool set_lock(const char *username)
 
 /**
  * @brief Remove a maildir lock.
- * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The input username (NULL terminated).
  * @return true The lock was successfully removed.
@@ -189,7 +213,6 @@ static bool remove_lock(const char *username)
 
 /**
  * @brief Validate a user password.
- * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The username (NULL terminated).
  * @param pass The input password (NULL terminated).
@@ -205,12 +228,47 @@ static bool pass_valid(const char *username, const char *pass)
         return false;
     }
 
+    size_t pass_len = strlen(pass);
+    size_t input_len = strlen(user->password);
+
+    if (pass_len != input_len)
+    {
+        return false;
+    }
+
     return !strcmp(user->password, pass);
 }
 
 /**
+ * @brief Validate an admin password.
+ *
+ * @param username The username (NULL terminated).
+ * @param pass The input password (NULL terminated).
+ * @return true The password is correct.
+ * @return false The password is incorrect (or failed to read the password file).
+ */
+static bool admin_pass_valid(const char *username, const char *pass)
+{
+    Admin *admin = get_admin(username);
+
+    if (!admin)
+    {
+        return false;
+    }
+
+    size_t pass_len = strlen(pass);
+    size_t input_len = strlen(admin->password);
+
+    if (pass_len != input_len)
+    {
+        return false;
+    }
+
+    return !strcmp(admin->password, pass);
+}
+
+/**
  * @brief Set the user emails in the client connection.
- * @note The username MUST be a safe string. Use safe_username() to validate.
  *
  * @param username The username (NULL terminated).
  * @param client The client connection.
@@ -340,7 +398,10 @@ static size_t handle_user(Connection *client, const char *username, char **respo
  */
 static size_t handle_pass(Connection *client, const char *pass, char **response, bool is_manager)
 {
-    if (!user_exists(client->username) || !pass_valid(client->username, pass))
+    bool (*user_validator)(const char *) = is_manager ? admin_exists : user_exists;
+    bool (*pass_validator)(const char *, const char *) = is_manager ? admin_pass_valid : pass_valid;
+
+    if (!user_validator(client->username) || !pass_validator(client->username, pass))
     {
         client->username[0] = 0;
 
@@ -348,29 +409,32 @@ static size_t handle_pass(Connection *client, const char *pass, char **response,
         return sizeof(ERR_RESPONSE(" Invalid credentials")) - 1;
     }
 
-    if (user_locked(client->username))
+    if (!is_manager)
     {
-        client->username[0] = 0;
+        if (user_locked(client->username))
+        {
+            client->username[0] = 0;
 
-        *response = ERR_RESPONSE(" User mailbox in use");
-        return sizeof(ERR_RESPONSE(" User mailbox in use")) - 1;
-    }
+            *response = ERR_RESPONSE(" User mailbox in use");
+            return sizeof(ERR_RESPONSE(" User mailbox in use")) - 1;
+        }
 
-    if (!set_lock(client->username))
-    {
-        client->username[0] = 0;
+        if (!set_lock(client->username))
+        {
+            client->username[0] = 0;
 
-        *response = ERR_RESPONSE(" Failed to lock mailbox");
-        return sizeof(ERR_RESPONSE(" Failed to lock mailbox")) - 1;
-    }
+            *response = ERR_RESPONSE(" Failed to lock mailbox");
+            return sizeof(ERR_RESPONSE(" Failed to lock mailbox")) - 1;
+        }
 
-    if (!set_user_mails(client->username, client))
-    {
-        remove_lock(client->username);
-        client->username[0] = 0;
+        if (!set_user_mails(client->username, client))
+        {
+            remove_lock(client->username);
+            client->username[0] = 0;
 
-        *response = ERR_RESPONSE(" Failed to load user mails");
-        return sizeof(ERR_RESPONSE(" Failed to load user mails")) - 1;
+            *response = ERR_RESPONSE(" Failed to load user mails");
+            return sizeof(ERR_RESPONSE(" Failed to load user mails")) - 1;
+        }
     }
 
     client->authenticated = true;
@@ -393,7 +457,7 @@ static size_t handle_noop(char **response)
 
 /**
  * @brief Handles a STAT command.
- * 
+ *
  * @note The response must be freed by the caller.
  *
  * @param client The client connection.
@@ -533,11 +597,7 @@ static int handle_retr_plumbing(char *filename)
 
     if (!pid)
     {
-        int transformer_pipes[2];
-        if (pipe(transformer_pipes))
-        {
-            _exit(EXIT_FAILURE);
-        }
+        close(output_pipes[0]);
 
         int stuffer_pipes[2];
         if (pipe(stuffer_pipes))
@@ -553,10 +613,7 @@ static int handle_retr_plumbing(char *filename)
 
         if (!pid)
         {
-            close(transformer_pipes[0]);
-            close(transformer_pipes[1]);
             close(stuffer_pipes[1]);
-            close(output_pipes[0]);
 
             dup2(stuffer_pipes[0], STDIN_FILENO);
             dup2(output_pipes[1], STDOUT_FILENO);
@@ -565,35 +622,20 @@ static int handle_retr_plumbing(char *filename)
             _exit(EXIT_FAILURE);
         }
 
-        pid = fork();
-        if (pid < 0)
+        int fd = open(filename, O_RDONLY);
+
+        if (fd < 0)
         {
             _exit(EXIT_FAILURE);
         }
 
-        if (!pid)
-        {
-            close(transformer_pipes[1]);
-            close(stuffer_pipes[0]);
-            close(output_pipes[0]);
-            close(output_pipes[1]);
-
-            dup2(transformer_pipes[0], STDIN_FILENO);
-            dup2(stuffer_pipes[1], STDOUT_FILENO);
-
-            execlp(transformer, transformer, NULL);
-            _exit(EXIT_FAILURE);
-        }
-
-        close(transformer_pipes[0]);
         close(stuffer_pipes[0]);
-        close(stuffer_pipes[1]);
-        close(output_pipes[0]);
         close(output_pipes[1]);
 
-        dup2(transformer_pipes[1], STDOUT_FILENO);
+        dup2(fd, STDIN_FILENO);
+        dup2(stuffer_pipes[1], STDOUT_FILENO);
 
-        execlp("cat", "cat", filename, NULL);
+        execlp(transformer, transformer, NULL);
         _exit(EXIT_FAILURE);
     }
 
@@ -701,7 +743,7 @@ static size_t handle_dele(Connection *client, size_t msg, char **response)
 
 /**
  * @brief Handles a RSET command.
- * 
+ *
  * @param client The client connection.
  * @param response The response to send back to the client.
  * @return size_t The length of the response.
@@ -822,12 +864,13 @@ static ON_MESSAGE_RESULT handle_uidl_all(Connection *client, int client_fd)
  * @param body The message body.
  * @param length The message length.
  * @param is_manager If the client is a manager.
+ * @param ip The client IP address.
  * @return ON_MESSAGE_RESULT The result of the message handling.
  */
-static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int client_fd, char *body, size_t length, bool is_manager)
+static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int client_fd, char *body, size_t length, bool is_manager, const char *ip)
 {
     char cmds[length + 1];
-    strncpy(cmds, body, length);
+    memcpy(cmds, body, length);
     cmds[length] = 0;
 
     int argc = parse_pop_cmd(cmds);
@@ -851,8 +894,23 @@ static ON_MESSAGE_RESULT handle_pop_authorization_state(Connection *client, int 
                 return KEEP_CONNECTION_OPEN;
             }
 
+            bool before = client->authenticated;
             // Spaces are accepted as part of the password, so don't use the parsed args
             size_t len = handle_pass(client, body + 5, &buffer, is_manager);
+            bool after = client->authenticated;
+
+            // Discard the const
+            char *ip_cpy = strdup(ip);
+            if (before != after)
+            {
+                log_other(_stats, client->username, ip_cpy, log_now(), success_login_log);
+            }
+            else
+            {
+                log_other(_stats, client->username, ip_cpy, log_now(), failed_login_log);
+            }
+            free(ip_cpy);
+
             asend(client_fd, buffer, len);
             return KEEP_CONNECTION_OPEN;
         }
@@ -1049,7 +1107,7 @@ static ON_MESSAGE_RESULT handle_pop_transaction_state(Connection *client, int cl
 
 /**
  * @brief Handles a message in the manager state of a Manager connection.
- * 
+ *
  * @param client The client connection.
  * @param client_fd The client file descriptor.
  * @param body The message body.
@@ -1142,9 +1200,18 @@ static ON_MESSAGE_RESULT handle_manager_state(Connection *client, int client_fd,
         char *username = cmds + sizeof("ADD");
         char *password = username + strlen(username) + 1;
 
+        bool edited = !!get_user(username);
+
         if (set_user(username, password))
         {
             char response[] = OK_RESPONSE(" Failed to add user");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        if (edited)
+        {
+            char response[] = OK_RESPONSE(" User updated");
             asend(client_fd, response, sizeof(response) - 1);
             return KEEP_CONNECTION_OPEN;
         }
@@ -1177,6 +1244,117 @@ static ON_MESSAGE_RESULT handle_manager_state(Connection *client, int client_fd,
         return KEEP_CONNECTION_OPEN;
     }
 
+    if (!strcmp(cmds, "LIST"))
+    {
+        if (argc > 1)
+        {
+            char response[] = ERR_RESPONSE(" Invalid number of arguments");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        if (argc == 1)
+        {
+            char *username = cmds + sizeof("LIST");
+
+            User *user = get_user(username);
+            if (!user)
+            {
+                char response[] = ERR_RESPONSE(" User not found");
+                asend(client_fd, response, sizeof(response) - 1);
+                return KEEP_CONNECTION_OPEN;
+            }
+
+            size_t count = get_user_logs_count(_stats, user->username);
+
+            char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
+            size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, OK_RESPONSE(" %s %zu"), user->username, count);
+
+            asend(client_fd, buffer, len);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        const User *users;
+        size_t count = get_users_arr(&users);
+
+        asend(client_fd, OK_RESPONSE(), sizeof(OK_RESPONSE()) - 1);
+
+        for (size_t i = 0; i < count; i++)
+        {
+            char buffer[MAX_POP3_RESPONSE_LENGTH + 1];
+            size_t len = snprintf(buffer, MAX_POP3_RESPONSE_LENGTH, "%s" POP3_ENTER, users[i].username);
+            asend(client_fd, buffer, len);
+        }
+
+        asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    if (!strcmp(cmds, "STAT"))
+    {
+        char response[] = OK_RESPONSE();
+        asend(client_fd, response, sizeof(response) - 1);
+
+        char buffer[2048];
+        size_t len = snprintf(
+            buffer,
+            sizeof(buffer),
+            "Total connections:\t\t%zu" POP3_ENTER "Historical maximum traffic:\t%zu" POP3_ENTER "Total transferred bytes:\t%zu" POP3_ENTER,
+            read_historic_connections(_stats),
+            read_max_current_connections(_stats),
+            read_bytes_transferred(_stats));
+
+        asend(client_fd, buffer, len);
+        asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
+        return KEEP_CONNECTION_OPEN;
+    }
+
+    if (!strcmp(cmds, "LOGS"))
+    {
+        if (argc != 1)
+        {
+            char response[] = ERR_RESPONSE(" Invalid number of arguments");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        char *username = cmds + sizeof("LOGS");
+
+        User *user = get_user(username);
+        if (!user)
+        {
+            char response[] = ERR_RESPONSE(" User not found");
+            asend(client_fd, response, sizeof(response) - 1);
+            return KEEP_CONNECTION_OPEN;
+        }
+
+        char buffer[] = OK_RESPONSE();
+        asend(client_fd, buffer, sizeof(buffer) - 1);
+
+        pop_log logs_buffer[64];
+        size_t count = get_user_logs_count(_stats, user->username);
+        do
+        {
+            get_user_logs(_stats, user->username, logs_buffer, 64);
+
+            for (size_t j = 0; j < 64 && logs_buffer[j].username; j++)
+            {
+                char *str = parse_log(logs_buffer[j], NULL);
+                asend(client_fd, str, strlen(str));
+                asend(client_fd, POP3_ENTER, sizeof(POP3_ENTER) - 1);
+                free(str);
+            }
+
+            if (count > 64)
+            {
+                count -= 64;
+            }
+        } while (count > 64);
+
+        asend(client_fd, "." POP3_ENTER, sizeof("." POP3_ENTER) - 1);
+        return KEEP_CONNECTION_OPEN;
+    }
+
     char response[] = ERR_RESPONSE(" Invalid command");
     asend(client_fd, response, sizeof(response) - 1);
     return KEEP_CONNECTION_OPEN;
@@ -1192,7 +1370,7 @@ static ON_MESSAGE_RESULT handle_manager_state(Connection *client, int client_fd,
  * @param is_manager If the client is a manager.
  * @return ON_MESSAGE_RESULT The result of the message handling.
  */
-static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd, char *cmd, size_t length, bool is_manager)
+static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd, char *cmd, size_t length, bool is_manager, const char *ip)
 {
     // If the client is already on the UPDATE state, ignore the message
     if (client->update)
@@ -1203,7 +1381,7 @@ static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd
     // Authorization state
     if (!client->authenticated)
     {
-        return handle_pop_authorization_state(client, client_fd, cmd, length, is_manager);
+        return handle_pop_authorization_state(client, client_fd, cmd, length, is_manager, ip);
     }
 
     if (is_manager)
@@ -1214,11 +1392,9 @@ static ON_MESSAGE_RESULT handle_pop_single_cmd(Connection *client, int client_fd
     return handle_pop_transaction_state(client, client_fd, cmd, length);
 }
 
-ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address, const short port)
+ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in6 address, const int server_fd)
 {
-    const short manager_port = ntohs(get_manager_adport().sin_port);
-
-    if (port == manager_port && active_managers >= MAX_ADMIN_CONNECTIONS)
+    if (server_fd == manager_server_fd && active_managers >= MAX_ADMIN_CONNECTIONS)
     {
         return CONNECTION_ERROR;
     }
@@ -1230,10 +1406,10 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address, 
         return CONNECTION_ERROR;
     }
 
-    if (port == manager_port)
+    if (server_fd == manager_server_fd)
     {
         active_managers++;
-        char response[] = OK_RESPONSE(" Manager ready");
+        char response[] = OK_RESPONSE(" MSMP ready");
         asend(client_fd, response, sizeof(response) - 1);
         return KEEP_CONNECTION_OPEN;
     }
@@ -1243,9 +1419,9 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address, 
     return KEEP_CONNECTION_OPEN;
 }
 
-ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const short port)
+ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const int server_fd, const char *ip)
 {
-    bool is_manager = port == ntohs(get_manager_adport().sin_port);
+    bool is_manager = server_fd == manager_server_fd;
 
     Connection *client = connections[client_fd];
 
@@ -1272,7 +1448,7 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
                 data = client->buffer;
             }
 
-            ON_MESSAGE_RESULT result = handle_pop_single_cmd(client, client_fd, data, strlen(data), is_manager);
+            ON_MESSAGE_RESULT result = handle_pop_single_cmd(client, client_fd, data, strlen(data), is_manager, ip);
 
             client->buffer[0] = 0;
 
@@ -1288,14 +1464,17 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
     // If there is a command left in the body, store it for the next message
     if (start_cmd != buffer + length)
     {
+        size_t before_len = strlen(client->buffer);
+        size_t remaining_len = length - (start_cmd - buffer);
+
         // If the buffer is full, drop the connection
-        if (sizeof(client->buffer) - strlen(client->buffer) - 1 < length - (start_cmd - buffer))
+        if (sizeof(client->buffer) - before_len - 1 < remaining_len)
         {
             return CONNECTION_ERROR;
         }
 
-        strncpy(client->buffer, start_cmd, length - (start_cmd - buffer));
-        client->buffer[length - (start_cmd - buffer)] = 0;
+        strncpy(client->buffer + before_len, start_cmd, remaining_len);
+        client->buffer[before_len + remaining_len] = 0;
     }
     else
     {
@@ -1305,11 +1484,11 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
     return KEEP_CONNECTION_OPEN;
 }
 
-void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result, const short port)
+void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result, const int server_fd)
 {
     Connection *client = connections[client_fd];
 
-    if (port == ntohs(get_manager_adport().sin_port))
+    if (server_fd == manager_server_fd)
     {
         active_managers--;
         goto COMMON_CONNECTIONS_CLOSE;

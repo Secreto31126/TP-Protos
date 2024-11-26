@@ -2,6 +2,7 @@
 #define POP_H
 
 #include <netutils.h>
+#include <statistics.h>
 
 #define MAX_POP3_ARG_LENGTH 40
 #define MAX_USERNAME_LENGTH MAX_POP3_ARG_LENGTH
@@ -14,8 +15,10 @@
  * @note The bytestuffer must take input from stdin and output to stdout.
  *
  * @param bytestuffer The path to the bytestuffer program, defaults to "./dist/bytestuff".
+ * @param manager_fd The file descriptor of the manager server.
+ * @param stats The statistics manager for logging.
  */
-void pop_init(const char *bytestuffer);
+void pop_init(const char *bytestuffer, const int manager_fd, statistics_manager *stats);
 /**
  * @brief Finalize the POP3 server.
  */
@@ -27,11 +30,11 @@ void pop_stop();
  *
  * @param client_fd The client file descriptor.
  * @param address The client address information.
- * @param port The port the connection was received on.
+ * @param server_fd The server that received the connection.
  * @return KEEP_CONNECTION_OPEN if the connection is handled as expected.
  * @return CONNECTION_ERROR if an error occurred.
  */
-ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address, const short port);
+ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in6 address, const int server_fd);
 
 /**
  * @brief Handles a POP3 message, which may contain multiple instructions separated by \\r\\n.
@@ -41,10 +44,11 @@ ON_MESSAGE_RESULT handle_pop_connect(int client_fd, struct sockaddr_in address, 
  * @param client_fd The client file descriptor.
  * @param body The message body.
  * @param length The message length.
- * @param port The port the message was received on.
+ * @param server_fd The server that received the message.
+ * @param ip The client IP address.
  * @return ON_MESSAGE_RESULT The result of the message handling.
  */
-ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const short port);
+ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t length, const int server_fd, const char *ip);
 
 /**
  * @brief Free the resources associated with a client connection.
@@ -54,8 +58,8 @@ ON_MESSAGE_RESULT handle_pop_message(int client_fd, const char *body, size_t len
  *
  * @param client_fd The client file descriptor.
  * @param result The result of the last message handled.
- * @param port The port the connection was received on.
+ * @param server_fd The server that received the message.
  */
-void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result, const short port);
+void handle_pop_close(int client_fd, ON_MESSAGE_RESULT result, const int server_fd);
 
 #endif

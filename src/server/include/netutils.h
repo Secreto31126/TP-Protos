@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <statistics.h>
 
 #define MAX_CLIENTS 5
 #define MAX_PENDING_CLIENTS 10
@@ -21,12 +22,12 @@ typedef enum ON_MESSAGE_RESULT
  *
  * @param client_fd The client file descriptor.
  * @param address The client address information.
- * @param port The port the connection was received on.
+ * @param server_fd The server that received the connection.
  * @return KEEP_CONNECTION_OPEN to keep the connection open.
  * @return CLOSE_CONNECTION to close.
  * @return CONNECTION_ERROR to save to stats and close.
  */
-typedef ON_MESSAGE_RESULT (*connection_event)(const int client_fd, struct sockaddr_in address, const short port);
+typedef ON_MESSAGE_RESULT (*connection_event)(const int client_fd, struct sockaddr_in6 address, const int server_fd);
 
 /**
  * @brief Handle a message event
@@ -34,12 +35,13 @@ typedef ON_MESSAGE_RESULT (*connection_event)(const int client_fd, struct sockad
  * @param client_fd The client file descriptor.
  * @param body The message body.
  * @param length The message length.
- * @param port The port the message was received on.
+ * @param server_fd The server that received the message.
+ * @param ip The client IP address.
  * @return KEEP_CONNECTION_OPEN to keep the connection open.
  * @return CLOSE_CONNECTION to close.
  * @return CONNECTION_ERROR to save to stats and close.
  */
-typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body, size_t length, const short port);
+typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body, size_t length, const int server_fd, const char *ip);
 
 /**
  * @brief Handle a close event
@@ -47,9 +49,9 @@ typedef ON_MESSAGE_RESULT (*message_event)(const int client_fd, const char *body
  *
  * @param client_fd The client file descriptor.
  * @param result The result of the last message handled.
- * @param port The port the connection was received on.
+ * @param server_fd The server that received the message.
  */
-typedef void (*close_event)(const int client_fd, ON_MESSAGE_RESULT result, const short port);
+typedef void (*close_event)(const int client_fd, ON_MESSAGE_RESULT result, const int server_fd);
 
 /**
  * @brief Handle a finished read and send event
@@ -65,7 +67,7 @@ typedef int (*read_event)(FILE *file);
  * @param address The server address to bind.
  * @return int The server file descriptor, or -1 if an error occurred.
  */
-int start_server(struct sockaddr_in *address);
+int start_server(struct sockaddr_in6 *address);
 /**
  * @brief Add a server to the poll list.
  * 
@@ -75,7 +77,7 @@ int start_server(struct sockaddr_in *address);
  * @param server_fd The server file descriptor.
  * @param address The server address.
  */
-void add_server(int server_fd, struct sockaddr_in *address);
+void add_server(int server_fd, struct sockaddr_in6 *address);
 /**
  * @brief The main server loop to handle incoming connections and messages.
  *
@@ -87,9 +89,10 @@ void add_server(int server_fd, struct sockaddr_in *address);
  * @param on_connection The callback function to handle incoming connections, it may be NULL.
  * @param on_message The callback function to handle incoming messages.
  * @param on_close The callback function to handle closed connections, it may be NULL.
+ * @param stats The statistics manager for logging.
  * @return int The exit status.
  */
-int server_loop(const bool *done, connection_event on_connection, message_event on_message, close_event on_close);
+int server_loop(const bool *done, connection_event on_connection, message_event on_message, close_event on_close, statistics_manager *stats);
 
 /**
  * @brief Asynchronously send a package to a client.
