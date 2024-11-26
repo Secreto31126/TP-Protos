@@ -214,6 +214,14 @@ static bool pass_valid(const char *username, const char *pass)
         return false;
     }
 
+    size_t pass_len = strlen(pass);
+    size_t input_len = strlen(user->password);
+
+    if (pass_len != input_len)
+    {
+        return false;
+    }
+
     return !strcmp(user->password, pass);
 }
 
@@ -230,6 +238,14 @@ static bool admin_pass_valid(const char *username, const char *pass)
     Admin *admin = get_admin(username);
 
     if (!admin)
+    {
+        return false;
+    }
+
+    size_t pass_len = strlen(pass);
+    size_t input_len = strlen(admin->password);
+
+    if (pass_len != input_len)
     {
         return false;
     }
