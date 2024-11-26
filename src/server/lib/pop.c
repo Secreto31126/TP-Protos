@@ -149,6 +149,18 @@ static bool user_exists(const char *username)
 }
 
 /**
+ * @brief Validate if an admin exists in the server.
+ *
+ * @param username The input username (NULL terminated).
+ * @return true The user exists.
+ * @return false The user does not exist.
+ */
+static bool admin_exists(const char *username)
+{
+    return get_admin(username) != NULL;
+}
+
+/**
  * @brief Validate if a user mail directory isn't locked.
  *
  * @param username The input username (NULL terminated).
@@ -203,6 +215,26 @@ static bool pass_valid(const char *username, const char *pass)
     }
 
     return !strcmp(user->password, pass);
+}
+
+/**
+ * @brief Validate an admin password.
+ *
+ * @param username The username (NULL terminated).
+ * @param pass The input password (NULL terminated).
+ * @return true The password is correct.
+ * @return false The password is incorrect (or failed to read the password file).
+ */
+static bool admin_pass_valid(const char *username, const char *pass)
+{
+    Admin *admin = get_admin(username);
+
+    if (!admin)
+    {
+        return false;
+    }
+
+    return !strcmp(admin->password, pass);
 }
 
 /**
@@ -336,7 +368,10 @@ static size_t handle_user(Connection *client, const char *username, char **respo
  */
 static size_t handle_pass(Connection *client, const char *pass, char **response, bool is_manager)
 {
-    if (!user_exists(client->username) || !pass_valid(client->username, pass))
+    bool (*user_validator)(const char *) = is_manager ? admin_exists : user_exists;
+    bool (*pass_validator)(const char *, const char *) = is_manager ? admin_pass_valid : pass_valid;
+
+    if (!user_validator(client->username) || !pass_validator(client->username, pass))
     {
         client->username[0] = 0;
 
@@ -344,29 +379,32 @@ static size_t handle_pass(Connection *client, const char *pass, char **response,
         return sizeof(ERR_RESPONSE(" Invalid credentials")) - 1;
     }
 
-    if (user_locked(client->username))
+    if (!is_manager)
     {
-        client->username[0] = 0;
+        if (user_locked(client->username))
+        {
+            client->username[0] = 0;
 
-        *response = ERR_RESPONSE(" User mailbox in use");
-        return sizeof(ERR_RESPONSE(" User mailbox in use")) - 1;
-    }
+            *response = ERR_RESPONSE(" User mailbox in use");
+            return sizeof(ERR_RESPONSE(" User mailbox in use")) - 1;
+        }
 
-    if (!set_lock(client->username))
-    {
-        client->username[0] = 0;
+        if (!set_lock(client->username))
+        {
+            client->username[0] = 0;
 
-        *response = ERR_RESPONSE(" Failed to lock mailbox");
-        return sizeof(ERR_RESPONSE(" Failed to lock mailbox")) - 1;
-    }
+            *response = ERR_RESPONSE(" Failed to lock mailbox");
+            return sizeof(ERR_RESPONSE(" Failed to lock mailbox")) - 1;
+        }
 
-    if (!set_user_mails(client->username, client))
-    {
-        remove_lock(client->username);
-        client->username[0] = 0;
+        if (!set_user_mails(client->username, client))
+        {
+            remove_lock(client->username);
+            client->username[0] = 0;
 
-        *response = ERR_RESPONSE(" Failed to load user mails");
-        return sizeof(ERR_RESPONSE(" Failed to load user mails")) - 1;
+            *response = ERR_RESPONSE(" Failed to load user mails");
+            return sizeof(ERR_RESPONSE(" Failed to load user mails")) - 1;
+        }
     }
 
     client->authenticated = true;
