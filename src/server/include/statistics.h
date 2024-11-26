@@ -30,18 +30,18 @@ typedef enum log_t
     OTHER
 } log_t;
 
-typedef struct log
+typedef struct pop_log
 {
     char *username;
     char *ip;
     timestamp time;
     void *data;
     log_t type;
-} log;
+} pop_log;
 
 typedef struct user_logs
 {
-    log **logs;
+    pop_log **logs;
     char *username;
     uint64_t logs_size;
     uint64_t logs_dim;
@@ -54,7 +54,7 @@ typedef struct statistics_manager
     uint64_t historic_connections;
     uint64_t transferred_bytes;
     hashset *user_logs;
-    log **logs_array;
+    pop_log **logs_array;
     uint64_t logs_array_dim;
     uint64_t logs_array_size;
 } statistics_manager;
@@ -68,12 +68,12 @@ void log_bytes_transferred(statistics_manager *sm, char *username, char *ip, uin
 void log_connect(statistics_manager *sm, char *username, char *ip, timestamp time);
 void log_disconnect(statistics_manager *sm, char *username, char *ip, timestamp time);
 void log_other(statistics_manager *sm, char *username, char *ip, timestamp time, void *data);
-uint64_t get_all_logs(statistics_manager *sm, log *log_buffer, uint64_t log_buffer_size);
-uint64_t get_user_logs(statistics_manager *sm, char *username, log *log_buffer, uint64_t log_buffer_size);
+uint64_t get_all_logs(statistics_manager *sm, pop_log *log_buffer, uint64_t log_buffer_size);
+uint64_t get_user_logs(statistics_manager *sm, char *username, pop_log *log_buffer, uint64_t log_buffer_size);
 uint64_t get_all_logs_count(statistics_manager *sm);
 uint64_t get_user_logs_count(statistics_manager *sm, char *username);
-uint64_t get_all_logs_range(statistics_manager *sm, log *log_buffer, uint64_t range_start, uint64_t range_end);
-uint64_t get_user_logs_range(statistics_manager *sm, char *username, log *log_buffer, uint64_t range_start, uint64_t range_end);
+uint64_t get_all_logs_range(statistics_manager *sm, pop_log *log_buffer, uint64_t range_start, uint64_t range_end);
+uint64_t get_user_logs_range(statistics_manager *sm, char *username, pop_log *log_buffer, uint64_t range_start, uint64_t range_end);
 uint64_t read_bytes_transferred(statistics_manager *sm, uint64_t bytes);
 uint64_t read_historic_connections(statistics_manager *sm);
 uint64_t read_current_connections(statistics_manager *sm);

@@ -33,7 +33,7 @@ char *aux_parse_log(uint64_t len, const char *__restrict__ __format, ...)
     return s;
 }
 
-char *parse_log(log l, data_parser parser)
+char *parse_log(pop_log l, data_parser parser)
 {
     char *type_s = log_type_string(l.type);
     char *time_s = readable_time(l.time);
