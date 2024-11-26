@@ -562,6 +562,11 @@ static int handle_retr_plumbing(char *filename)
 
         int fd = open(filename, O_RDONLY);
 
+        if (fd < 0)
+        {
+            _exit(EXIT_FAILURE);
+        }
+
         close(stuffer_pipes[0]);
         close(output_pipes[1]);
 
