@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <logger.h>
 #include <magic.h>
 #include <management_config.h>
@@ -534,11 +535,7 @@ static int handle_retr_plumbing(char *filename)
 
     if (!pid)
     {
-        int transformer_pipes[2];
-        if (pipe(transformer_pipes))
-        {
-            _exit(EXIT_FAILURE);
-        }
+        close(output_pipes[0]);
 
         int stuffer_pipes[2];
         if (pipe(stuffer_pipes))
@@ -554,10 +551,7 @@ static int handle_retr_plumbing(char *filename)
 
         if (!pid)
         {
-            close(transformer_pipes[0]);
-            close(transformer_pipes[1]);
             close(stuffer_pipes[1]);
-            close(output_pipes[0]);
 
             dup2(stuffer_pipes[0], STDIN_FILENO);
             dup2(output_pipes[1], STDOUT_FILENO);
@@ -566,35 +560,15 @@ static int handle_retr_plumbing(char *filename)
             _exit(EXIT_FAILURE);
         }
 
-        pid = fork();
-        if (pid < 0)
-        {
-            _exit(EXIT_FAILURE);
-        }
+        int fd = open(filename, O_RDONLY);
 
-        if (!pid)
-        {
-            close(transformer_pipes[1]);
-            close(stuffer_pipes[0]);
-            close(output_pipes[0]);
-            close(output_pipes[1]);
-
-            dup2(transformer_pipes[0], STDIN_FILENO);
-            dup2(stuffer_pipes[1], STDOUT_FILENO);
-
-            execlp(transformer, transformer, NULL);
-            _exit(EXIT_FAILURE);
-        }
-
-        close(transformer_pipes[0]);
         close(stuffer_pipes[0]);
-        close(stuffer_pipes[1]);
-        close(output_pipes[0]);
         close(output_pipes[1]);
 
-        dup2(transformer_pipes[1], STDOUT_FILENO);
+        dup2(fd, STDIN_FILENO);
+        dup2(stuffer_pipes[1], STDOUT_FILENO);
 
-        execlp("cat", "cat", filename, NULL);
+        execlp(transformer, transformer, NULL);
         _exit(EXIT_FAILURE);
     }
 
