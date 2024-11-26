@@ -217,7 +217,7 @@ uint64_t get_user_logs(statistics_manager *sm, char *username, pop_log *log_buff
 {
     uint64_t log_count = get_user_logs_count(sm, username);
     uint64_t range_start = log_buffer_size < log_count ? log_count - log_buffer_size : 0;
-    return get_user_logs_range(sm, log_buffer, username, range_start, log_count);
+    return get_user_logs_range(sm, username, log_buffer, range_start, log_count);
 }
 
 uint64_t read_bytes_transferred(statistics_manager *sm)
