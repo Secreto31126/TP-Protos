@@ -84,7 +84,7 @@ statistics_manager *create_statistics_manager()
 void resize_logs_array(statistics_manager *sm)
 {
     sm->logs_array_dim *= 2;
-    sm->logs_array = realloc(sm->logs_array, sm->logs_array_dim);
+    sm->logs_array = realloc(sm->logs_array, sm->logs_array_dim * sizeof(pop_log *));
 }
 
 void check_resize_logs_array(statistics_manager *sm)
