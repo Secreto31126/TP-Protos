@@ -123,14 +123,12 @@ void parse_message(char *message, char *response_buffer)
 
 int application_loop(int sockfd)
 {
-    struct pollfd fds[2] = {{.fd = STDIN_FILENO, .events = POLLIN}, {.fd = sockfd, .events = POLLIN}};
-    int ret;
     char buffer[BLOCK];
+    struct pollfd fds[] = {{.fd = STDIN_FILENO, .events = POLLIN}, {.fd = sockfd, .events = POLLIN}};
+
     while (!done)
     {
-        ret = poll(fds, 2, -1);
-
-        if (ret < 0)
+        if (poll(fds, 2, -1) < 0)
         {
             perror("Poll failed");
             return 1;
