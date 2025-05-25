@@ -1,4 +1,5 @@
-#include "closed_hashing.h"
+#include <closed_hashing.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 

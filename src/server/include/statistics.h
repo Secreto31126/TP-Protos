@@ -1,5 +1,6 @@
 #ifndef STSTC_H
 #define STSTC_H
+
 #include <stdint.h>
 #include <time.h>
 #include "closed_hashing.h"

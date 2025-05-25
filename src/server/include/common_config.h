@@ -1,5 +1,6 @@
-#ifndef COMMON_CONFIG
-#define COMMON_CONFIG
+#ifndef COMMON_CONFIG_H
+#define COMMON_CONFIG_H
+
 #include <pop.h>
 
 /**

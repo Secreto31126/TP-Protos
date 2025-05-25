@@ -1,6 +1,7 @@
 #ifndef LOGREAD_H
 #define LOGREAD_H
-#include "statistics.h"
+
+#include <statistics.h>
 
 /**
  * @brief A function that receives the data field from a log and returns either NULL or a memory allocated string that represents this data

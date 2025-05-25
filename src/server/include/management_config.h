@@ -1,5 +1,6 @@
-#ifndef MANAGEMENT_CONFIG
-#define MANAGEMENT_CONFIG
+#ifndef MANAGEMENT_CONFIG_H
+#define MANAGEMENT_CONFIG_H
+
 #include <common_config.h>
 #include <netutils.h>
 #include <pop.h>

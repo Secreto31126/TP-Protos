@@ -1,5 +1,6 @@
-#ifndef POP_CONFIG
-#define POP_CONFIG
+#ifndef POP_CONFIG_H
+#define POP_CONFIG_H
+
 #include <common_config.h>
 #include <pop.h>
 #include <netutils.h>
