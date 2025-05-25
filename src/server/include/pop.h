@@ -8,7 +8,7 @@
 #define MAX_USERNAME_LENGTH MAX_POP3_ARG_LENGTH
 #define MAX_PASSWORD_LENGTH 256
 #define MAX_POP3_RESPONSE_LENGTH 512
-#define MAX_USERS 11
+#define MAX_USERS 110
 
 /**
  * @brief Initialize the POP3 server.
