@@ -7,7 +7,6 @@
 #include <unistd.h>
 #include <statistics.h>
 
-#define MAX_CLIENTS 5
 #define MAX_PENDING_CLIENTS 10
 
 typedef enum ON_MESSAGE_RESULT
