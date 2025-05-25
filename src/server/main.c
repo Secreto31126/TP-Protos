@@ -11,9 +11,6 @@
 #include <signal.h>
 #include <sys/wait.h>
 
-#define DEFAULT_PORT_POP 8080
-#define DEFAULT_PORT_CONF 8081
-
 #define PROG_NAME "server"
 
 /**
