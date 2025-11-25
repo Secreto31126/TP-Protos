@@ -589,7 +589,7 @@ static ON_MESSAGE_RESULT time_to_send(DataList *list, int client_fd, int fds_ind
     char *message = data->raw.data;
     size_t length = data->raw.length;
 
-    size_t sent = send(client_fd, message, length, 0);
+    ssize_t sent = send(client_fd, message, length, 0);
     if (sent < 0)
     {
         free_data(data);
